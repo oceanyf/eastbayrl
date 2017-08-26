@@ -16,7 +16,7 @@ class NServoArmEnv(gym.Env):
         self.max_speed=.2
         self.dt=.05
         self.viewer = None
-        self.links=[1,0.7,.4]
+        self.links=[1,0.7,.4,.4]
         self.high = np.array([self.max_angle]*len(self.links))
         self.action_space = spaces.Box(low=-self.max_angle, high=self.max_angle, shape=(len(self.links),))
         self.observation_space = spaces.Box(low=-self.high, high=self.high)
@@ -77,7 +77,8 @@ class NServoArmEnv(gym.Env):
         if self.viewer is None:
             from gym.envs.classic_control import rendering
             self.viewer = rendering.Viewer(500,250)
-            self.viewer.set_bounds(-2.2,2.2,-0.2,2.2)
+            sz=np.sum(self.links)
+            self.viewer.set_bounds(-1.1*sz,1.1*sz,-0.1*sz,1.1*sz)
             self.pole_transforms=[]
 
             for i,l in enumerate(self.links):
