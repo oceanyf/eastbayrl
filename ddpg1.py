@@ -47,7 +47,7 @@ plt.figure(1)
 
 cgradaf = K.function(critic.inputs, K.gradients(critic.outputs, critic.inputs[1]))  # grad of Q wrt actions
 
-for i_episode in range(2000):
+for i_episode in range(200000):
     observation1 = env.reset()
     totalReward=0
     clipcnt=0
@@ -72,7 +72,8 @@ for i_episode in range(2000):
 
         if(abs(action)>2.0): clipcnt+=1
         #print('done={} action ={}'.format(done,action))
-        env.render()
+        if (i_episode % 100)==0:
+            env.render()
         totalReward+=reward
         if done:
             break
@@ -107,8 +108,9 @@ for i_episode in range(2000):
         sp=410
         plt.clf()
         plt.subplot(sp+1)
+        plt.title("Episode {}".format(i_episode))
         for i in range(Robs[run].shape[1]):
-            plt.plot(Robs[run,i],label='observation'+str(i))
+            plt.plot(Robs[run,i],label='observation {}'.format(i))
         plt.legend(loc=1)
         plt.subplot(sp+2)
         plt.plot(Raction[run],'g',label='action')
@@ -119,6 +121,8 @@ for i_episode in range(2000):
         plt.subplot(sp+4)
         q=Qscale*critic.predict([Robs[run],Raction[run]])
         plt.plot(q,'k',label='Q')
+        qp=Qscale*criticp.predict([Robs[run],Raction[run]])
+        plt.plot(qp,'gray',label='Qp')
         r=Rreward[run].copy()
         for i in reversed(range(len(r)-1)):
             r[i]+= gamma*r[i+1]
