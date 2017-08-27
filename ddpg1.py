@@ -26,8 +26,10 @@ actor.summary()
 #target networks
 criticp=keras.models.clone_model(critic)
 criticp.compile(optimizer='adam',loss='mse')
+criticp.set_weights(critic.get_weights())
 actorp=keras.models.clone_model(actor)
 actorp.compile(optimizer='adam',loss='mse')
+actorp.set_weights(actor.get_weights())
 
 #replay buffers
 Robs=np.zeros([Rsz] + list(env.observation_space.shape))
@@ -79,46 +81,54 @@ for i_episode in range(200000):
             break
 
     print("Episode {} finished after {} timesteps total reward={} clipped={}".format(i_episode,t + 1, totalReward,clipcnt))
+
     if Rfull:
-        sample=np.random.choice(Rsz, N)
+        sample = np.random.choice(Rsz, N)
 
-        #update critic
+        # update critic
         # debugging - try fitting the critic without the target
-        #yq=Rreward[sample]+gamma*(Qscale*criticp.predict([Robs1[sample],actorp.predict(Robs1[sample])])[:,0])
-        yq=(Rreward[sample]+gamma*(Qscale*critic.predict([Robs1[sample],actor.predict(Robs1[sample])])[:,0]))/Qscale
-        critic.fit([Robs[sample],Raction[sample]],yq,batch_size=N, epochs=5,verbose=0)
+        # yq=Rreward[sample]+gamma*(Qscale*criticp.predict([Robs1[sample],actorp.predict(Robs1[sample])])[:,0])
+        yq = (Rreward[sample] + gamma * (Qscale * criticp.predict([Robs1[sample], actorp.predict(Robs1[sample])])[:, 0])) / Qscale
+        critic.fit([Robs[sample], Raction[sample]], yq, batch_size=N, epochs=5, verbose=0)
 
-        #update the actor
-        actions=actor.predict(Robs[sample])
-        grads=cgradaf([Robs[sample],actions])[0]
-        ya=actions+0.01*grads     # nudge action in direction that improves Q
-        ya=np.clip(ya,env.action_space.low,env.action_space.high)
+        # update the actor
+        actions = actor.predict(Robs[sample])
+        grads = cgradaf([Robs[sample], actions])[0]
+        ya = actions + 0.01 * grads  # nudge action in direction that improves Q
+        ya = np.clip(ya, env.action_space.low, env.action_space.high)
         actor.fit(Robs[sample], ya, verbose=0, epochs=5)
 
-        #update target networks
-        criticp.set_weights([tau*w+(1-tau)*wp for wp,w in zip(criticp.get_weights(),critic.get_weights())])
-        # debugging - only try to fit the critic
-        #actorp.set_weights([tau*w+(1-tau)*wp for wp,w in zip(actorp.get_weights(),actor.get_weights())])
+        # update target networks
+        criticp.set_weights([tau * w + (1 - tau) * wp for wp, w in zip(criticp.get_weights(), critic.get_weights())])
+        actorp.set_weights([tau*w+(1-tau)*wp for wp,w in zip(actorp.get_weights(),actor.get_weights())])
 
         # diagnostic messages
-        q=critic.predict([Robs[sample],actions])
-        print('rewards={} grads={} q={}'.format(np.mean(Rreward[sample]),np.mean(grads),np.mean(q)))
+        q = critic.predict([Robs[sample], actions])
+        print('rewards={} grads={} q={}'.format(np.mean(Rreward[sample]), np.mean(grads), np.mean(q)))
 
     if len(run)>2:
         sp=410
         plt.clf()
         plt.subplot(sp+1)
+
         plt.title("Episode {}".format(i_episode))
         for i in range(Robs[run].shape[1]):
-            plt.plot(Robs[run,i],label='observation {}'.format(i))
+            plt.plot(Robs[run,i],label='obs {}'.format(i))
         plt.legend(loc=1)
         plt.subplot(sp+2)
-        plt.plot(Raction[run],'g',label='action')
+        plt.gca().set_ylim([1.3*env.action_space.low,1.3*env.action_space.high])
+        plt.plot(Raction[run],'g',label='action taken')
+        actionp=actorp.predict(Robs[run])
+        action=actor.predict(Robs[run])
+        plt.plot(action,'red',label='action')
+        plt.plot(actionp,'lightgreen',label='actionp')
         plt.legend(loc=1)
         plt.subplot(sp+3)
+        plt.gca().set_ylim([-15,0])
         plt.plot(Rreward[run],'r',label='reward')
         plt.legend(loc=1)
         plt.subplot(sp+4)
+        plt.gca().set_ylim([-200,50])
         q=Qscale*critic.predict([Robs[run],Raction[run]])
         plt.plot(q,'k',label='Q')
         qp=Qscale*criticp.predict([Robs[run],Raction[run]])
