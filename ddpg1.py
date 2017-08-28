@@ -9,8 +9,8 @@ from matplotlib import pyplot as plt
 
 Rsz=1000 #replay buffer size
 N=128 #mini batch size
-tau=0.1
-gamma=0.9
+tau=0.02
+gamma=0.9 
 Qscale=(1/(1-gamma))
 std=0.005
 
@@ -39,21 +39,27 @@ Raction=np.zeros([Rsz] + list(env.action_space.shape))
 Rdone=np.zeros((Rsz,))
 
 def exploration(action):
-    return np.random.normal(0.0,std,action.shape)
+    return np.random.normal(0.02,std,action.shape)
 
 ridx=0
 Rfull=False
 
 plt.ion()
 plt.figure(1)
-
+renderFlag=True
+def ontype(event):
+    global renderFlag
+    print(event.key)
+    renderFlag=not renderFlag
+plt.gcf().canvas.mpl_connect('key_press_event',ontype)
 cgradaf = K.function(critic.inputs, K.gradients(critic.outputs, critic.inputs[1]))  # grad of Q wrt actions
 
+totalRewards = []
 for i_episode in range(200000):
     observation1 = env.reset()
     totalReward=0
     clipcnt=0
-    run=[]
+    episode=[]
     for t in range(1000):
         observation=observation1
         action = actor.predict(np.expand_dims(observation,axis=0))
@@ -66,7 +72,7 @@ for i_episode in range(200000):
         Rreward[ridx]=reward
         Rdone[ridx]=done
         Robs1[ridx]=observation1
-        run.append(ridx)
+        episode.append(ridx)
 
         ridx= (ridx + 1) % Rsz
         if (ridx == 0):
@@ -74,13 +80,14 @@ for i_episode in range(200000):
 
         if(abs(action)>2.0): clipcnt+=1
         #print('done={} action ={}'.format(done,action))
-        if (i_episode % 100)==0:
+        if renderFlag:
             env.render()
         totalReward+=reward
         if done:
             break
-
+    totalRewards.append(totalReward)
     print("Episode {} finished after {} timesteps total reward={} clipped={}".format(i_episode,t + 1, totalReward,clipcnt))
+
 
     if Rfull:
         sample = np.random.choice(Rsz, N)
@@ -103,39 +110,44 @@ for i_episode in range(200000):
         actorp.set_weights([tau*w+(1-tau)*wp for wp,w in zip(actorp.get_weights(),actor.get_weights())])
 
         # diagnostic messages
-        q = critic.predict([Robs[sample], actions])
-        print('rewards={} grads={} q={}'.format(np.mean(Rreward[sample]), np.mean(grads), np.mean(q)))
+        q = Qscale*critic.predict([Robs[sample], actions])
+        q2 = Qscale*critic.predict([Robs[sample],ya])
+        print('rewards={} grads={} q={} q2={}'.format(np.mean(Rreward[sample]), np.mean(grads),
+                                                      np.mean(q),np.mean(q2)))
 
-    if len(run)>2:
-        sp=410
+    if len(episode)>2:
+        sp=510
         plt.clf()
         plt.subplot(sp+1)
 
         plt.title("Episode {}".format(i_episode))
-        for i in range(Robs[run].shape[1]):
-            plt.plot(Robs[run,i],label='obs {}'.format(i))
+        for i in range(Robs[episode].shape[1]):
+            plt.plot(Robs[episode, i], label='obs {}'.format(i))
         plt.legend(loc=1)
         plt.subplot(sp+2)
         plt.gca().set_ylim([1.3*env.action_space.low,1.3*env.action_space.high])
-        plt.plot(Raction[run],'g',label='action taken')
-        actionp=actorp.predict(Robs[run])
-        action=actor.predict(Robs[run])
+        plt.plot(Raction[episode], 'g', label='action taken')
+        actionp=actorp.predict(Robs[episode])
+        action=actor.predict(Robs[episode])
         plt.plot(action,'red',label='action')
         plt.plot(actionp,'lightgreen',label='actionp')
         plt.legend(loc=1)
         plt.subplot(sp+3)
         plt.gca().set_ylim([-15,0])
-        plt.plot(Rreward[run],'r',label='reward')
+        plt.plot(Rreward[episode], 'r', label='reward')
         plt.legend(loc=1)
         plt.subplot(sp+4)
         plt.gca().set_ylim([-200,50])
-        q=Qscale*critic.predict([Robs[run],Raction[run]])
+        q=Qscale*critic.predict([Robs[episode], Raction[episode]])
         plt.plot(q,'k',label='Q')
-        qp=Qscale*criticp.predict([Robs[run],Raction[run]])
+        qp=Qscale*criticp.predict([Robs[episode], Raction[episode]])
         plt.plot(qp,'gray',label='Qp')
-        r=Rreward[run].copy()
-        for i in reversed(range(len(r)-1)):
-            r[i]+= gamma*r[i+1]
-        plt.plot(r,'r',label='R')
+        discounted_future_reward=Rreward[episode].copy()
+        for i in reversed(range(len(discounted_future_reward)-1)):
+            discounted_future_reward[i]+= gamma * discounted_future_reward[i + 1]
+        plt.plot(discounted_future_reward, 'r', label='R')
         plt.legend(loc=1)
+        plt.subplot(sp+5)
+        plt.plot(totalRewards, 'r', label='episode reward')
+        plt.legend(loc=2)
         plt.pause(0.1)
