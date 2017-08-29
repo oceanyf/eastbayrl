@@ -15,7 +15,7 @@ tau=0.01
 gamma=0.95
 Qscale=(1/(1-gamma))
 Oscale=np.array([1,1,.2])
-std=0.005
+noiseStd=0.01
 warmup=50
 
 #import project specifics, such as actor/critic models
@@ -47,7 +47,7 @@ Rdone=np.zeros((Rsz,))
 
 #define exploration policy
 def exploration(action):
-    return np.random.normal(0.12,std,action.shape)
+    return np.random.normal(0, noiseStd, action.shape)
 
 
 
@@ -67,7 +67,7 @@ RewardsHistory = []
 QAccHistory = []
 for i_episode in range(200000):
     observation1 = env.reset()
-    episodeReward=0
+    RewardsHistory.append(0)
     clipcnt=0
     episode=[]
     for t in range(1000):
@@ -95,11 +95,13 @@ for i_episode in range(200000):
         if renderFlag:
             env.render()
 
-        episodeReward+=reward
+        RewardsHistory[-1]+=reward
         if done:
             break
 
-        if Rfull:
+    print("Episode {} finished after {} timesteps total reward={}".format(i_episode, t + 1, RewardsHistory[-1]))
+    if Rfull:
+        for train_iter in range(len(episode)):
             sample = np.random.choice(min(rcnt, Rsz), N)
             # update critic
             yq = (Rreward[sample] + gamma * (Qscale * criticp.predict([Robs1[sample], actorp.predict(Robs1[sample])])[:, 0])) / Qscale
@@ -116,9 +118,6 @@ for i_episode in range(200000):
             criticp.set_weights([tau * w + (1 - tau) * wp for wp, w in zip(criticp.get_weights(), critic.get_weights())])
             actorp.set_weights([tau * w + (1 - tau) * wp for wp, w in zip(actorp.get_weights(), actor.get_weights())])
 
-    RewardsHistory.append(episodeReward)
-    print("Episode {} finished after {} timesteps total reward={}".format(i_episode, t + 1, episodeReward))
-
     if len(episode)>2:
         sp=(6,1)
         plt.clf()
@@ -129,7 +128,7 @@ for i_episode in range(200000):
             plt.plot(Robs[episode, i], label='obs {}'.format(i))
         plt.legend(loc=1)
         plt.subplot(*sp,2)
-        plt.gca().set_ylim([1.3*env.action_space.low,1.3*env.action_space.high])
+        #plt.gca().set_ylim([1.3*env.action_space.low,1.3*env.action_space.high])
         plt.plot(Raction[episode], 'g', label='action taken')
         actionp=actorp.predict(Robs[episode])
         action=actor.predict(Robs[episode])
