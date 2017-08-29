@@ -81,25 +81,22 @@ for i_episode in range(200000):
 
         # insert into replay buffer
         ridx=rcnt%Rsz
+        rcnt+=1
         Robs[ridx]=observation
         Raction[ridx]=action
         Rreward[ridx]=reward
         Rdone[ridx]=done
         Robs1[ridx]=observation1
+
+        #book keeping
         episode.append(ridx)
-
-        rcnt+=1
-        if (rcnt> N*5):
-            Rfull = True
-
-        if renderFlag:
-            env.render()
-
         RewardsHistory[-1]+=reward
-        if done:
-            break
+        if renderFlag:env.render()
+        if done: break
 
     print("Episode {} finished after {} timesteps total reward={}".format(i_episode, t + 1, RewardsHistory[-1]))
+    if (rcnt > N * 5):
+        Rfull = True
     if Rfull:
         for train_iter in range(len(episode)):
             sample = np.random.choice(min(rcnt, Rsz), N)
