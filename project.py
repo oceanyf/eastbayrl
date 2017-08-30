@@ -4,9 +4,10 @@ from keras.layers import Dense,Input,BatchNormalization
 from keras.models import Model
 from keras.optimizers import Adam
 from util import DDPGof,OrnsteinUhlenbeckProcess
+import nservoarm
 
 
-env = gym.make('Pendulum-v0')
+env = gym.make('NServoArm-v0')
 
 #critic
 oin = Input(shape=env.observation_space.shape,name='observeration')
@@ -28,7 +29,7 @@ actor.add(Dense(10,input_shape=env.observation_space.shape))
 actor.add(Dense(16,activation='relu'))
 actor.add(Dense(16,activation='relu'))
 actor.add(Dense(16,activation='relu'))
-actor.add(Dense(1,activation='linear'))
-actor.compile(optimizer=DDPGof(Adam)(critic, actor, lr=0.0001), loss='mse')
+actor.add(Dense(env.action_space.shape[0],activation='linear'))
+actor.compile(optimizer=DDPGof(Adam)(critic, actor, lr=0.001), loss='mse')
 
-exploration=OrnsteinUhlenbeckProcess(size=env.action_space.shape, sigma=0.1, theta=.15, mu=0.)
+exploration=OrnsteinUhlenbeckProcess(size=env.action_space.shape, sigma=2.14, theta=.15, mu=0.,sigma_min=0.3)

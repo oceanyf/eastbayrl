@@ -15,7 +15,7 @@ class NServoArmEnv(gym.Env):
         self.max_speed=.2
         self.dt=.05
         self.viewer = None
-        self.links=[1,0.7,.4,.4]
+        self.links=[1,0.8]
         self.high = np.array([self.max_angle]*len(self.links))
         self.action_space = spaces.Box(low=-self.max_angle, high=self.max_angle, shape=(len(self.links),))
         self.observation_space = spaces.Box(low=-self.high, high=self.high)
@@ -24,8 +24,8 @@ class NServoArmEnv(gym.Env):
         self.linkx=np.zeros_like(self.links)
         self.linky=np.zeros_like(self.links)
         self.linka=np.zeros_like(self.links)
-        self.goalx=0.5
-        self.goaly=0.5
+        self.goalx=1
+        self.goaly=1
 
     def _seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
@@ -39,28 +39,29 @@ class NServoArmEnv(gym.Env):
         for i,l in enumerate(self.links):
             th=self.state[i]
             thdot=(u[i]-th)*10 #
-            thdot=np.clip(thdot, -self.max_speed, self.max_speed)
+            #thdot=np.clip(thdot, -self.max_speed, self.max_speed)
             self.state[i] = th + thdot*dt
 
         x,y=[0,0]
         angle= 0
         for i,l in enumerate(self.links):
             angle+=self.state[i]
-            self.pole_transforms[i].set_rotation(angle)
-            self.pole_transforms[i].set_translation(x,y)
+            #self.pole_transforms[i].set_rotation(angle)
+            #self.pole_transforms[i].set_translation(x,y)
             self.linka[i]=angle
             self.linkx[i]=x
             self.linky[i]=y
             x=x+l*cos(angle)
             y=y+l*sin(angle)
 
-        reward = sqrt((self.goalx-x)**2+(self.goaly-y)**2)
+        reward = 2-sqrt((self.goalx-x)**2+(self.goaly-y)**2)
 
         return self._get_obs(), reward, self.done, {}
 
     def _reset(self):
         self.state= np.zeros_like(self.state)
         self.done=False
+        self.state = np.random.uniform(-np.pi,np.pi,size=[2])
         return self._get_obs()
 
     def _get_obs(self):
@@ -93,13 +94,24 @@ class NServoArmEnv(gym.Env):
             axle.set_color(0,0,0)
             self.viewer.add_geom(axle)
 
+            goal = rendering.make_circle(0.02)
+            goal.set_color(1,0,0)
+            self.goal_transform = rendering.Transform()
+            goal.add_attr(self.goal_transform)
+            self.viewer.add_geom(goal)
         angle= 0
         for i,l in enumerate(self.links):
             angle+=self.state[i]
             self.pole_transforms[i].set_rotation(self.linka[i])
             self.pole_transforms[i].set_translation(self.linkx[i],self.linky[i])
-
+        self.goal_transform.set_translation(self.goalx,self.goaly)
         return self.viewer.render(return_rgb_array = mode=='rgb_array')
 
 def angle_normalize(x):
     return (((x+np.pi) % (2*np.pi)) - np.pi)
+
+gym.envs.register(
+    id='NServoArm-v0',
+    entry_point='nservoarm:NServoArmEnv',
+    max_episode_steps=200,
+)

@@ -2,11 +2,7 @@
 #
 import gym
 import nservoarm
-gym.envs.register(
-    id='NServoArm-v0',
-    entry_point='nservoarm:NServoArmEnv',
-    max_episode_steps=200,
-)
+
 env = gym.make('NServoArm-v0')
 for i_episode in range(200):
     observation = env.reset()

@@ -11,7 +11,7 @@ N=32 # sample size
 tau=0.01
 gamma=0.95
 Oscale=np.array([1,1,.2])
-warmup=50
+warmup=25
 
 
 #import project specifics, such as actor/critic models
@@ -67,10 +67,11 @@ for i_episode in range(200000):
         observation=observation1
 
         #take step using the action based on actor
-        action = actor.predict(np.expand_dims(observation,axis=0))
+        action = actor.predict(np.expand_dims(observation,axis=0))[0]
         if noiseFlag: action += exploration.sample()
         observation1, reward, done, _ = env.step(action)
-        observation1=observation1[:,0]*Oscale
+        #observation1=observation1[:,0]*Oscale
+        print("obs {} action {} reward {}".format(observation1,action,reward))
 
         # insert into replay buffer
         ridx=rcnt%Rsz
@@ -100,17 +101,18 @@ for i_episode in range(200000):
 
             # train the actor to maximize Q
             if i_episode > warmup:
-                actor.train_on_batch(Robs[sample], np.zeros(N,*actor.input_shape))
+                actor.train_on_batch(Robs[sample], np.zeros([N,actor.input_shape[1]]))
 
             # update target networks
             criticp.set_weights([tau * w + (1 - tau) * wp for wp, w in zip(criticp.get_weights(), critic.get_weights())])
             actorp.set_weights([tau * w + (1 - tau) * wp for wp, w in zip(actorp.get_weights(), actor.get_weights())])
 
     if len(episode)>2:
+        print("episod length {}".format(len(episode)))
         sp=(6,1)
         plt.clf()
         plt.subplot(*sp,1)
-        plt.gca().set_ylim([-1.2,1.2])
+        #plt.gca().set_ylim([-1.2,1.2])
         plt.title("Episode {} {}{}".format(i_episode,"Warming" if (i_episode<warmup) else "","/W noise" if noiseFlag else ""))
         for i in range(Robs[episode].shape[1]):
             plt.plot(Robs[episode, i], label='obs {}'.format(i))
@@ -123,27 +125,28 @@ for i_episode in range(200000):
         plt.plot(actionp,'lightgreen',label='actionp')
         plt.legend(loc=1)
         plt.subplot(*sp,3)
-        plt.gca().set_ylim([-15,0])
+        #plt.gca().set_ylim([-15,0])
         plt.plot(Rreward[episode], 'r', label='reward')
         plt.legend(loc=1)
         plt.subplot(*sp,4)
-        plt.gca().set_ylim([-15/(1-gamma),50])
-        q=critic.predict([Robs[episode], Raction[episode]])
-        plt.plot(q,'k',label='Q')
-        qp=criticp.predict([Robs[episode], Raction[episode]])
-        plt.plot(qp,'gray',label='Qp')
+        #plt.gca().set_ylim([-15/(1-gamma),50])
+        q = critic.predict([Robs[episode], Raction[episode]])
+        plt.plot(q, 'k', label='Q')
+        qp = criticp.predict([Robs[episode], Raction[episode]])
+        plt.plot(qp, 'gray', label='Qp')
+
         discounted_future_reward=Rreward[episode].copy()
         for i in reversed(range(len(discounted_future_reward)-1)):
             discounted_future_reward[i]+= gamma * discounted_future_reward[i + 1]
-        plt.plot(discounted_future_reward, 'r', label='R')
         QAccHistory.append(np.mean(np.abs(discounted_future_reward-qp)))
+        plt.plot(discounted_future_reward, 'r', label='R')
         plt.legend(loc=1)
         plt.subplot(*sp,5)
-        plt.gca().set_ylim([-2000,0])
+        #plt.gca().set_ylim([-2000,0])
         plt.plot(RewardsHistory, 'r', label='reward history')
         plt.legend(loc=2)
         plt.subplot(*sp,6)
-        plt.plot(QAccHistory, 'r', label='Qloss history')
+        plt.plot(QAccHistory, 'r', label='Q error history')
         plt.legend(loc=2)
         plt.pause(0.1)
 
