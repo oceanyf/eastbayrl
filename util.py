@@ -12,6 +12,8 @@ def DDPGof(opt):
             return K.gradients(self.combinedloss,self.actor.trainable_weights)
     return tmp
 
+def ddpgloss(y_true, y_pred):
+        return y_true*0+1
 
 
 # borrowed from https://github.com/matthiasplappert/keras-rl.git
