@@ -11,7 +11,6 @@ N=32 # sample size
 tau=0.01
 gamma=0.95
 Oscale=np.array([1,1,.2])
-noiseStd=0.01
 warmup=50
 
 
@@ -43,21 +42,18 @@ Rreward=np.zeros((Rsz,))
 Raction=np.zeros([Rsz] + list(env.action_space.shape))
 Rdone=np.zeros((Rsz,))
 
-#define exploration policy
-def exploration(action):
-    return np.random.normal(0, noiseStd, action.shape)
-
-
-
 #set up the plotting
 plt.ion()
 plt.figure(1)
 renderFlag=False
-def ontype(event): # any keypress will toggle the rendering
-    global renderFlag
-    renderFlag=not renderFlag
+noiseFlag=True
+def ontype(event): # r  will toggle the rendering, n will togggle noise
+    global renderFlag,noiseFlag
+    if event.key == 'r' or event.key == ' ':
+        renderFlag=not renderFlag
+    elif event.key == 'n':
+        noiseFlag=not noiseFlag
 plt.gcf().canvas.mpl_connect('key_press_event',ontype)
-
 
 rcnt=0
 Rfull=False
@@ -66,14 +62,13 @@ QAccHistory = []
 for i_episode in range(200000):
     observation1 = env.reset()
     RewardsHistory.append(0)
-    clipcnt=0
     episode=[]
     for t in range(1000):
         observation=observation1
 
         #take step using the action based on actor
         action = actor.predict(np.expand_dims(observation,axis=0))
-        action += exploration(action)
+        if noiseFlag: action += exploration.sample()
         observation1, reward, done, _ = env.step(action)
         observation1=observation1[:,0]*Oscale
 
@@ -92,9 +87,9 @@ for i_episode in range(200000):
         if renderFlag:env.render()
         if done: break
 
-    print("Episode {} finished after {} timesteps total reward={}".format(i_episode, t + 1, RewardsHistory[-1]))
     if (rcnt > N * 5):
         Rfull = True
+
     if Rfull:
         for train_iter in range(len(episode)):
             sample = np.random.choice(min(rcnt, Rsz), N)
@@ -116,12 +111,11 @@ for i_episode in range(200000):
         plt.clf()
         plt.subplot(*sp,1)
         plt.gca().set_ylim([-1.2,1.2])
-        plt.title("Episode {} {}".format(i_episode,"Warming" if (i_episode<warmup) else ""))
+        plt.title("Episode {} {}{}".format(i_episode,"Warming" if (i_episode<warmup) else "","/W noise" if noiseFlag else ""))
         for i in range(Robs[episode].shape[1]):
             plt.plot(Robs[episode, i], label='obs {}'.format(i))
         plt.legend(loc=1)
         plt.subplot(*sp,2)
-        #plt.gca().set_ylim([1.3*env.action_space.low,1.3*env.action_space.high])
         plt.plot(Raction[episode], 'g', label='action taken')
         actionp=actorp.predict(Robs[episode])
         action=actor.predict(Robs[episode])
@@ -152,3 +146,5 @@ for i_episode in range(200000):
         plt.plot(QAccHistory, 'r', label='Qloss history')
         plt.legend(loc=2)
         plt.pause(0.1)
+
+    print("Episode {} finished after {} timesteps total reward={}".format(i_episode, t + 1, RewardsHistory[-1]))

@@ -3,8 +3,7 @@ import keras
 from keras.layers import Dense,Input,BatchNormalization
 from keras.models import Model
 from keras.optimizers import Adam
-
-from util import DDPGof
+from util import DDPGof,OrnsteinUhlenbeckProcess
 
 
 env = gym.make('Pendulum-v0')
@@ -31,3 +30,5 @@ actor.add(Dense(16,activation='relu'))
 actor.add(Dense(16,activation='relu'))
 actor.add(Dense(1,activation='linear'))
 actor.compile(optimizer=DDPGof(Adam)(critic, actor, lr=0.0001), loss='mse')
+
+exploration=OrnsteinUhlenbeckProcess(size=env.action_space.shape, sigma=0.1, theta=.15, mu=0.)
