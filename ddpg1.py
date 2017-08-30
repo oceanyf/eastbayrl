@@ -5,9 +5,6 @@ import keras
 import keras.backend as K
 import numpy as np
 from matplotlib import pyplot as plt
-import os
-
-print(dir(os))
 
 Rsz=200000 #replay buffer size
 N=32 # sample size
@@ -18,8 +15,10 @@ Oscale=np.array([1,1,.2])
 noiseStd=0.01
 warmup=50
 
+
 #import project specifics, such as actor/critic models
 from project import *
+
 print('observation space {} high {} low {}'.format(env.observation_space,env.observation_space.high,env.observation_space.low))
 print('action space {} high {} low {}'.format(env.action_space,env.action_space.high,env.action_space.low))
 critic.summary()
@@ -100,16 +99,14 @@ for i_episode in range(200000):
     if Rfull:
         for train_iter in range(len(episode)):
             sample = np.random.choice(min(rcnt, Rsz), N)
-            # update critic
+
+            # train critic on discounted future rewards
             yq = (Rreward[sample] + gamma * (Qscale * criticp.predict([Robs1[sample], actorp.predict(Robs1[sample])])[:, 0])) / Qscale
             critic.train_on_batch([Robs[sample], Raction[sample]], yq)
 
-            # update the actor
+            # train the actor to maximize Q
             if i_episode > warmup:
-                actions = actor.predict(Robs[sample])
-                grads = cgradaf([Robs[sample], actions])[0]
-                ya = actions + 0.001 * grads  # nudge action in direction that improves Q
-                actor.train_on_batch(Robs[sample], ya)
+                actor.train_on_batch(Robs[sample], np.zeros(N,*actor.input_shape))
 
             # update target networks
             criticp.set_weights([tau * w + (1 - tau) * wp for wp, w in zip(criticp.get_weights(), critic.get_weights())])
