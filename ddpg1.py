@@ -10,7 +10,6 @@ Rsz=200000 #replay buffer size
 N=32 # sample size
 tau=0.01
 gamma=0.95
-Qscale=(1/(1-gamma))
 Oscale=np.array([1,1,.2])
 noiseStd=0.01
 warmup=50
@@ -101,7 +100,7 @@ for i_episode in range(200000):
             sample = np.random.choice(min(rcnt, Rsz), N)
 
             # train critic on discounted future rewards
-            yq = (Rreward[sample] + gamma * (Qscale * criticp.predict([Robs1[sample], actorp.predict(Robs1[sample])])[:, 0])) / Qscale
+            yq = (Rreward[sample] + gamma * (criticp.predict([Robs1[sample], actorp.predict(Robs1[sample])])[:, 0]))
             critic.train_on_batch([Robs[sample], Raction[sample]], yq)
 
             # train the actor to maximize Q
@@ -135,9 +134,9 @@ for i_episode in range(200000):
         plt.legend(loc=1)
         plt.subplot(*sp,4)
         plt.gca().set_ylim([-15/(1-gamma),50])
-        q=Qscale*critic.predict([Robs[episode], Raction[episode]])
+        q=critic.predict([Robs[episode], Raction[episode]])
         plt.plot(q,'k',label='Q')
-        qp=Qscale*criticp.predict([Robs[episode], Raction[episode]])
+        qp=criticp.predict([Robs[episode], Raction[episode]])
         plt.plot(qp,'gray',label='Qp')
         discounted_future_reward=Rreward[episode].copy()
         for i in reversed(range(len(discounted_future_reward)-1)):
@@ -150,7 +149,6 @@ for i_episode in range(200000):
         plt.plot(RewardsHistory, 'r', label='reward history')
         plt.legend(loc=2)
         plt.subplot(*sp,6)
-        #plt.gca().set_ylim([-1e3,1e3])
         plt.plot(QAccHistory, 'r', label='Qloss history')
         plt.legend(loc=2)
         plt.pause(0.1)
