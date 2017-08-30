@@ -3,11 +3,10 @@ import keras
 from keras.layers import Dense,Input,BatchNormalization
 from keras.models import Model
 from keras.optimizers import Adam
-from util import DDPGof,OrnsteinUhlenbeckProcess,ddpgloss
-import nservoarm
+from util import DDPGof,OrnsteinUhlenbeckProcess
 
 
-env = gym.make('NServoArm-v0')
+env = gym.make('Pendulum-v0')
 
 #critic
 oin = Input(shape=env.observation_space.shape,name='observeration')
@@ -16,9 +15,6 @@ ain = Input(shape=env.action_space.shape,name='action')
 #c2=Dense(2,activation='linear')(ain)
 c3=keras.layers.concatenate([oin,ain])
 #c3=BatchNormalization()(c3)
-c3=Dense(64,activation='relu')(c3)
-c3=Dense(64,activation='relu')(c3)
-c3=Dense(64,activation='relu')(c3)
 c3=Dense(32,activation='relu')(c3)
 c3=Dense(32,activation='relu')(c3)
 c3=Dense(32,activation='relu')(c3)
@@ -29,13 +25,10 @@ critic.compile(optimizer=Adam(lr=0.001),loss='mse')
 #actor
 actor=keras.models.Sequential()
 actor.add(Dense(10,input_shape=env.observation_space.shape))
-actor.add(Dense(32,activation='relu'))
-actor.add(Dense(32,activation='relu'))
-actor.add(Dense(32,activation='relu'))
 actor.add(Dense(16,activation='relu'))
 actor.add(Dense(16,activation='relu'))
 actor.add(Dense(16,activation='relu'))
-actor.add(Dense(env.action_space.shape[0],activation='linear'))
-actor.compile(optimizer=DDPGof(Adam)(critic, actor, lr=0.00001), loss=ddpgloss)
+actor.add(Dense(1,activation='linear'))
+actor.compile(optimizer=DDPGof(Adam)(critic, actor, lr=0.0001), loss='mse')
 
-exploration=OrnsteinUhlenbeckProcess(size=env.action_space.shape, sigma=.03, theta=.15, mu=0.,sigma_min=0.01)
+exploration=OrnsteinUhlenbeckProcess(size=env.action_space.shape, sigma=0.1, theta=.15, mu=0.)
