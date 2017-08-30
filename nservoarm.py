@@ -15,12 +15,12 @@ class NServoArmEnv(gym.Env):
         self.max_speed=.2
         self.dt=.05
         self.viewer = None
-        self.links=[1,0.8]
-        self.high = np.array([self.max_angle]*len(self.links))
+        self.links=[1]
+        self.high = np.array([self.max_angle]*len(self.links)+[2,2])
         self.action_space = spaces.Box(low=-self.max_angle, high=self.max_angle, shape=(len(self.links),))
-        self.observation_space = spaces.Box(low=-self.high, high=self.high)
+        self.observation_space = spaces.Box(low=-3, high=3, shape=(len(self.links)+2,))
         self._seed()
-        self.state=np.zeros_like(self.links)
+        self.state=np.zeros([2+len(self.links)])
         self.linkx=np.zeros_like(self.links)
         self.linky=np.zeros_like(self.links)
         self.linka=np.zeros_like(self.links)
@@ -34,12 +34,12 @@ class NServoArmEnv(gym.Env):
     def _step(self,u):
         dt = self.dt
 
-        u = np.clip(u, -self.max_angle, self.max_angle)
+        #u = np.clip(u, -self.max_angle, self.max_angle)
 
         for i,l in enumerate(self.links):
             th=self.state[i]
             thdot=(u[i]-th)*10 #
-            #thdot=np.clip(thdot, -self.max_speed, self.max_speed)
+            thdot=np.clip(thdot, -self.max_speed, self.max_speed)
             self.state[i] = th + thdot*dt
 
         x,y=[0,0]
@@ -61,7 +61,14 @@ class NServoArmEnv(gym.Env):
     def _reset(self):
         self.state= np.zeros_like(self.state)
         self.done=False
-        self.state = np.random.uniform(-np.pi,np.pi,size=[2])
+        r=np.sum(self.links)
+        #r *= np.random.uniform(0,1)
+        angle=np.random.uniform(0,np.pi)
+        self.goalx=r*cos(angle)
+        self.goaly=r*sin(angle)
+        self.state = np.random.uniform(-np.pi,np.pi,size=[len(self.links)+2])
+        self.state[-2]=self.goalx
+        self.state[-1]=self.goaly
         return self._get_obs()
 
     def _get_obs(self):
