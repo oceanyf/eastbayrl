@@ -183,19 +183,16 @@ for i_episode in range(200000):
             rest=[np.ones_like(X)*Robs[0,2],np.ones_like(X)*Robs[0,3]]
             obs = np.array([X,Y]+rest).T.reshape((gsz*gsz,ndim))
             Z = critic.predict([obs,actor.predict(obs)]).reshape(gsz,gsz)
-            if False:
-                p = ax.pcolor(X,Y , Z, cmap=plt.cm.RdBu, vmin=abs(Z).min(), vmax=abs(Z).max())
-                cb = fig.colorbar(p)
             vmin=abs(Z).min()
             vmax=abs(Z).max()
-            im = plt.imshow(Z, cmap=plt.cm.RdBu, vmin=vmin, vmax=vmax, extent=[low[0],high[0],low[1],high[1]])
+            im = plt.imshow(Z, cmap=plt.cm.RdBu_r, vmin=vmin, vmax=vmax, extent=[low[0],high[0],low[1],high[1]])
             im.set_interpolation('bilinear')
             cb = fig.colorbar(im)
             plt.axis([low[0],high[0],low[1],high[1]])
             for i,e in enumerate(episodes):
                 c = 'k' if i < len(episodes)-1 else 'w'
-                plt.scatter(x=Robs[e,1], y=-Robs[e,0], c=c,vmin=vmin, vmax=vmax,s=2)
-                plt.scatter(x=Robs[e,1], y=-Robs[e,0], cmap=plt.cm.RdBu, c=Rdfr[e],vmin=vmin, vmax=vmax,s=1)
+                plt.scatter(x=Robs[e,1], y=-Robs[e,0], c=c,vmin=vmin, vmax=vmax,s=3)
+                plt.scatter(x=Robs[e,1], y=-Robs[e,0], cmap=plt.cm.RdBu_r, c=Rdfr[e],vmin=vmin, vmax=vmax,s=2)
 
         plt.pause(0.1)
 
