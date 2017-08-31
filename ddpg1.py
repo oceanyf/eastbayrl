@@ -10,17 +10,17 @@ Rsz=200000 #replay buffer size
 N=32 # sample size
 tau=0.01
 gamma=0.95
-Oscale=np.array([1,1,.2])
 warmup=50
 
 
 #import project specifics, such as actor/critic models
 from project import *
 
-print('observation space {} high {} low {}'.format(env.observation_space,env.observation_space.high,env.observation_space.low))
+print('observation space {} high {} low {} {} {}'.format(env.observation_space,env.observation_space.high,env.observation_space.low,env.observation_space.shape,env.observation_space.shape[0]))
 print('action space {} high {} low {}'.format(env.action_space,env.action_space.high,env.action_space.low))
 critic.summary()
 actor.summary()
+
 
 # create target networks
 criticp=keras.models.clone_model(critic)
@@ -67,10 +67,12 @@ for i_episode in range(200000):
         observation=observation1
 
         #take step using the action based on actor
-        action = actor.predict(np.expand_dims(observation,axis=0))
+        action = actor.predict(np.expand_dims(observation,axis=0))[0]
         if noiseFlag: action += exploration.sample()
         observation1, reward, done, _ = env.step(action)
-        observation1=observation1[:,0]*Oscale
+        if len(observation1.shape)>1 and observation1.shape[-1]==1:
+            observation1=np.squeeze(observation1, axis=-1)
+        observation1= (observation1 - observationOffset) * observationScale
 
         # insert into replay buffer
         ridx=rcnt%Rsz
@@ -100,7 +102,7 @@ for i_episode in range(200000):
 
             # train the actor to maximize Q
             if i_episode > warmup:
-                actor.train_on_batch(Robs[sample], np.zeros(N,*actor.input_shape))
+                actor.train_on_batch(Robs[sample], np.zeros((N,*actor.output_shape[1:])))
 
             # update target networks
             criticp.set_weights([tau * w + (1 - tau) * wp for wp, w in zip(criticp.get_weights(), critic.get_weights())])
@@ -110,12 +112,14 @@ for i_episode in range(200000):
         sp=(6,1)
         plt.clf()
         plt.subplot(*sp,1)
-        plt.gca().set_ylim([-1.2,1.2])
+        #plt.gca().set_ylim([-1.2,1.2])
+        plt.gca().axhline(y=0, color='k')
         plt.title("Episode {} {}{}".format(i_episode,"Warming" if (i_episode<warmup) else "","/W noise" if noiseFlag else ""))
         for i in range(Robs[episode].shape[1]):
             plt.plot(Robs[episode, i], label='obs {}'.format(i))
         plt.legend(loc=1)
         plt.subplot(*sp,2)
+        plt.gca().axhline(y=0, color='k')
         plt.plot(Raction[episode], 'g', label='action taken')
         actionp=actorp.predict(Robs[episode])
         action=actor.predict(Robs[episode])
@@ -123,11 +127,11 @@ for i_episode in range(200000):
         plt.plot(actionp,'lightgreen',label='actionp')
         plt.legend(loc=1)
         plt.subplot(*sp,3)
-        plt.gca().set_ylim([-15,0])
+        plt.gca().axhline(y=0, color='k')
         plt.plot(Rreward[episode], 'r', label='reward')
         plt.legend(loc=1)
         plt.subplot(*sp,4)
-        plt.gca().set_ylim([-15/(1-gamma),50])
+        plt.gca().axhline(y=0, color='k')
         q=critic.predict([Robs[episode], Raction[episode]])
         plt.plot(q,'k',label='Q')
         qp=criticp.predict([Robs[episode], Raction[episode]])
@@ -139,10 +143,11 @@ for i_episode in range(200000):
         QAccHistory.append(np.mean(np.abs(discounted_future_reward-qp)))
         plt.legend(loc=1)
         plt.subplot(*sp,5)
-        plt.gca().set_ylim([-2000,0])
+        plt.gca().axhline(y=0, color='k')
         plt.plot(RewardsHistory, 'r', label='reward history')
         plt.legend(loc=2)
         plt.subplot(*sp,6)
+        plt.gca().axhline(y=0, color='k')
         plt.plot(QAccHistory, 'r', label='Qloss history')
         plt.legend(loc=2)
         plt.pause(0.1)

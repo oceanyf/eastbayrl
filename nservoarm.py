@@ -15,7 +15,7 @@ class NServoArmEnv(gym.Env):
         self.max_speed=.2
         self.dt=.05
         self.viewer = None
-        self.links=[1]
+        self.links=[1,1]
         self.high = np.array([self.max_angle]*len(self.links)+[2,2])
         self.action_space = spaces.Box(low=-self.max_angle, high=self.max_angle, shape=(len(self.links),))
         self.observation_space = spaces.Box(low=-3, high=3, shape=(len(self.links)+2,))
@@ -72,7 +72,7 @@ class NServoArmEnv(gym.Env):
         return self._get_obs()
 
     def _get_obs(self):
-        return self.state
+        return np.array(self.state)
 
     def _render(self, mode='human', close=False):
         if close:
