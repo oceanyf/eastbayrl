@@ -14,6 +14,7 @@ warmup=50
 renderFlag=False
 noiseFlag=True
 criticVizFlag=True
+criticVizIdx=[0,1]
 
 #import project specifics, such as actor/critic models
 from project import *
@@ -166,29 +167,39 @@ for i_episode in range(200000):
 
         #third plot
         if criticVizFlag:
+            plt.title("Qvalue for dims {}".format(criticVizIdx))
             fig=plt.figure(3)
             ax = plt.gca()
             plt.clf()
             #todo: make this a function of the first two action space dimensions
             gsz=100
+            oidx0=criticVizIdx[0]
+            oidx1=criticVizIdx[1]
             ndim=env.observation_space.shape[0]
             low=scaleDown(env.observation_space.low)
             high=scaleDown(env.observation_space.high)
-            X,Y=np.meshgrid(np.linspace(low[0],high[0],gsz),
-                            np.linspace(low[1],high[1],gsz))
-            rest=[np.ones_like(X)*Robs[0,2],np.ones_like(X)*Robs[0,3]]
-            obs = np.array([X,Y]+rest).T.reshape((gsz*gsz,ndim))
+            X,Y=np.meshgrid(np.linspace(low[oidx0],high[oidx0],gsz),
+                            np.linspace(low[oidx1],high[oidx1],gsz))
+            tmp=[]
+            for idx in range(ndim):
+                if idx in criticVizIdx:
+                    tmp.append(X if idx==criticVizIdx[0] else Y)
+                else:
+                    tmp.append(np.ones_like(X) * Robs[0, idx])
+            obs = np.array(tmp).T.reshape((gsz*gsz,ndim))
+            print("obs shape={}".format(obs.shape))
             Z = critic.predict([obs,actor.predict(obs)]).reshape(gsz,gsz)
             vmin=abs(Z).min()
             vmax=abs(Z).max()
-            im = plt.imshow(Z, cmap=plt.cm.RdBu_r, vmin=vmin, vmax=vmax, extent=[low[0],high[0],low[1],high[1]])
+            im = plt.imshow(Z, cmap=plt.cm.RdBu_r, vmin=vmin, vmax=vmax, extent=[low[oidx0],high[oidx0],low[oidx1],high[oidx1]])
             im.set_interpolation('bilinear')
             cb = fig.colorbar(im)
             plt.axis([low[0],high[0],low[1],high[1]])
             for i,e in enumerate(episodes):
-                c = 'k' if i < len(episodes)-1 else 'w'
+                c = 'w' if i < len(episodes)-1 else 'k'
                 plt.scatter(x=Robs[e,1], y=-Robs[e,0], c=c,vmin=vmin, vmax=vmax,s=3)
                 plt.scatter(x=Robs[e,1], y=-Robs[e,0], cmap=plt.cm.RdBu_r, c=Rdfr[e],vmin=vmin, vmax=vmax,s=2)
+            plt.scatter(x=Robs[episodes[-1][-1],1],y=Robs[episodes[-1][-1],0],c='k',s=6)
 
         plt.pause(0.1)
 
