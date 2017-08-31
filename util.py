@@ -71,3 +71,9 @@ class OrnsteinUhlenbeckProcess(AnnealedGaussianProcess):
 
     def reset_states(self):
         self.x_prev = self.x0 if self.x0 is not None else np.zeros(self.size)
+
+
+def ornstein_exploration(space,theta,nfrac=0.01,**kwrds):
+    #todo: add support for unique sigma per dimension
+    return OrnsteinUhlenbeckProcess(theta,size=space.shape,
+                                 sigma=nfrac*np.max(space.high),sigma_min=nfrac*np.min(space.low),**kwrds)
