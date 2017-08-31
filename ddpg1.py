@@ -13,6 +13,7 @@ gamma=0.95
 warmup=50
 renderFlag=False
 noiseFlag=True
+criticVizFlag=True
 
 #import project specifics, such as actor/critic models
 from project import *
@@ -50,11 +51,13 @@ Rdone=np.zeros((Rsz,))
 plt.ion()
 
 def ontype(event): # r  will toggle the rendering, n will togggle noise
-    global renderFlag,noiseFlag
+    global renderFlag,noiseFlag,criticVizFlag
     if event.key == 'r' or event.key == ' ':
         renderFlag=not renderFlag
     elif event.key == 'n':
         noiseFlag=not noiseFlag
+    elif event.key == 'v':
+        criticVizFlag=not criticVizFlag
 plt.gcf().canvas.mpl_connect('key_press_event',ontype)
 
 rcnt=0
@@ -166,31 +169,33 @@ for i_episode in range(200000):
         plt.legend(loc=2)
 
         #third plot
-        fig=plt.figure(3)
-        ax = plt.gca()
-        plt.clf()
-        #todo: make this a function of the first two action space dimensions
-        gsz=100
-        ndim=env.observation_space.shape[0]
-        low=scaleDown(env.observation_space.low)
-        high=scaleDown(env.observation_space.high)
-        X,Y=np.meshgrid(np.linspace(low[0],high[0],gsz),
-                        np.linspace(low[1],high[1],gsz))
-        rest=[np.ones_like(X)*Robs[0,2],np.ones_like(X)*Robs[0,3]]
-        obs = np.array([X,Y]+rest).T.reshape((gsz*gsz,ndim))
-        Z = critic.predict([obs,actor.predict(obs)]).reshape(gsz,gsz)
-        if False:
-            p = ax.pcolor(X,Y , Z, cmap=plt.cm.RdBu, vmin=abs(Z).min(), vmax=abs(Z).max())
-            cb = fig.colorbar(p)
-        vmin=abs(Z).min()
-        vmax=abs(Z).max()
-        im = plt.imshow(Z, cmap=plt.cm.RdBu, vmin=vmin, vmax=vmax, extent=[low[0],high[0],low[1],high[1]])
-        im.set_interpolation('bilinear')
-        cb = fig.colorbar(im)
-        plt.axis([low[0],high[0],low[1],high[1]])
-        for e in episodes:
-            plt.scatter(x=Robs[e,1], y=-Robs[e,0], c='k',vmin=vmin, vmax=vmax,s=2)
-            plt.scatter(x=Robs[e,1], y=-Robs[e,0], cmap=plt.cm.RdBu, c=Rdfr[e],vmin=vmin, vmax=vmax,s=1)
+        if criticVizFlag:
+            fig=plt.figure(3)
+            ax = plt.gca()
+            plt.clf()
+            #todo: make this a function of the first two action space dimensions
+            gsz=100
+            ndim=env.observation_space.shape[0]
+            low=scaleDown(env.observation_space.low)
+            high=scaleDown(env.observation_space.high)
+            X,Y=np.meshgrid(np.linspace(low[0],high[0],gsz),
+                            np.linspace(low[1],high[1],gsz))
+            rest=[np.ones_like(X)*Robs[0,2],np.ones_like(X)*Robs[0,3]]
+            obs = np.array([X,Y]+rest).T.reshape((gsz*gsz,ndim))
+            Z = critic.predict([obs,actor.predict(obs)]).reshape(gsz,gsz)
+            if False:
+                p = ax.pcolor(X,Y , Z, cmap=plt.cm.RdBu, vmin=abs(Z).min(), vmax=abs(Z).max())
+                cb = fig.colorbar(p)
+            vmin=abs(Z).min()
+            vmax=abs(Z).max()
+            im = plt.imshow(Z, cmap=plt.cm.RdBu, vmin=vmin, vmax=vmax, extent=[low[0],high[0],low[1],high[1]])
+            im.set_interpolation('bilinear')
+            cb = fig.colorbar(im)
+            plt.axis([low[0],high[0],low[1],high[1]])
+            for i,e in enumerate(episodes):
+                c = 'k' if i < len(episodes)-1 else 'w'
+                plt.scatter(x=Robs[e,1], y=-Robs[e,0], c=c,vmin=vmin, vmax=vmax,s=2)
+                plt.scatter(x=Robs[e,1], y=-Robs[e,0], cmap=plt.cm.RdBu, c=Rdfr[e],vmin=vmin, vmax=vmax,s=1)
 
         plt.pause(0.1)
 
