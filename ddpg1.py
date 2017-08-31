@@ -34,10 +34,6 @@ actorp=keras.models.clone_model(actor)
 actorp.compile(optimizer='adam',loss='mse')
 actorp.set_weights(actor.get_weights())
 
-# define gradient function for ddgp
-cgrada=K.gradients(critic.outputs, critic.inputs[1])
-cgradaf = K.function(critic.inputs,cgrada )  # grad of Q wrt actions
-
 
 #allocate replay buffers
 Robs=np.zeros([Rsz] + list(env.observation_space.shape))
