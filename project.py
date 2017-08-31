@@ -1,53 +1,69 @@
 import gym
 import keras
-from keras.layers import Dense,Input,BatchNormalization
+from keras.layers import Dense,Input,BatchNormalization,Dropout
 from keras.models import Model
 from keras.optimizers import Adam
-from util import DDPGof,OrnsteinUhlenbeckProcess
+from util import DDPGof,ornstein_exploration
 import numpy as np
 
 #tested environments
-envname='Pendulum-v0'
-#envname='MountainCarContinuous-v0'
-import nservoarm
-#envname='NServoArm-v0'
+def make_pendulum():
+    return gym.make('Pendulum-v0')
+def make_car():
+    return gym.make('MountainCarContinuous-v0')
+def make_arm():
+    import nservoarm
+    return gym.make('NServoArm-v0')
 
+env=make_arm()
+gamma=0
+#warmup=max(50,5/gamma)
+warmup=10
+renderFlag=True
 
-env = gym.make(envname)
+env = make_arm()
+print("spec= {}".format(env.spec.id))
 
-#critic
-oin = Input(shape=env.observation_space.shape,name='observeration')
-ain = Input(shape=env.action_space.shape,name='action')
-x=keras.layers.concatenate([oin, ain])
-#x=BatchNormalization()(x)
-#x=Dense(64, activation='relu')(x)
-#x=Dense(64, activation='relu')(x)
-#x=Dense(64, activation='relu')(x)
-x=Dense(32, activation='relu')(x)
-x=Dense(32, activation='relu')(x)
-x=Dense(32, activation='relu')(x)
-x=Dense(1, activation='linear', name='Q')(x)
-critic=Model([oin,ain], x)
-critic.compile(optimizer=Adam(lr=0.001),loss='mse')
+#create actor,critic
+def make_models():
+    #critic
+    oin = Input(shape=env.observation_space.shape,name='observeration')
+    ain = Input(shape=env.action_space.shape,name='action')
+    x=keras.layers.concatenate([oin, ain])
+    #x=BatchNormalization()(x)
+    x=Dense(64, activation='relu')(x)
+    #x=Dropout(.5)(x)
+    x=Dense(64, activation='relu')(x)
+    x=Dense(64, activation='relu')(x)
+    #x=Dropout(.5)(x)
+    x=Dense(32, activation='relu')(x)
+    x=Dense(32, activation='relu')(x)
+    x=Dense(32, activation='relu')(x)
+    x=Dense(1, activation='linear', name='Q')(x)
+    critic=Model([oin,ain], x)
+    critic.compile(optimizer=Adam(lr=0.001),loss='mse')
 
-#actor
-x=oin
-#x=BatchNormalization()(x)
-x=Dense(32,input_shape=env.observation_space.shape)(x)
-#x=Dense(32,activation='relu')(x)
-#x=Dense(32,activation='relu')(x)
-#x=Dense(32,activation='relu')(x)
-x=Dense(16,activation='relu')(x)
-x=Dense(16,activation='relu')(x)
-x=Dense(16,activation='relu')(x)
-x=Dense(env.action_space.shape[0],activation='linear')(x)
-actor=Model(oin,x)
-actor.compile(optimizer=DDPGof(Adam)(critic, actor, lr=0.0001), loss='mse')
+    #actor
+    x=oin
+    #x=BatchNormalization()(x)
+    x=Dense(32,input_shape=env.observation_space.shape)(x)
+    #x=Dense(32,activation='relu')(x)
+    #x=Dense(32,activation='relu')(x)
+    #x=Dense(32,activation='relu')(x)
+    x=Dense(16,activation='relu')(x)
+    #x=Dropout(.5)(x)
+    x=Dense(16,activation='relu')(x)
+    x=Dense(16,activation='relu')(x)
+    x=Dense(env.action_space.shape[0],activation='linear')(x)
+    actor=Model(oin,x)
+    actor.compile(optimizer=DDPGof(Adam)(critic, actor, lr=0.000001), loss='mse')
+    return actor,critic
 
-nfrac=0.01 # exploration noise fraction
-#todo: add support for unique sigma per dimension
-exploration=OrnsteinUhlenbeckProcess(theta=.5, mu=0., dt=1.0,size=env.action_space.shape,
-                             sigma=nfrac*np.max(env.action_space.high),sigma_min=nfrac*np.min(env.action_space.low))
+actor,critic=make_models()
+
+#exploration policy
+exploration=ornstein_exploration(env.action_space,theta=.5, mu=0., dt=1.0,)
+
 
 # Observation normalization
 observationOffset= (env.observation_space.low + env.observation_space.high) / 2
