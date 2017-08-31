@@ -56,7 +56,7 @@ def make_models():
     x=Dense(16,activation='relu')(x)
     x=Dense(env.action_space.shape[0],activation='linear')(x)
     actor=Model(oin,x)
-    actor.compile(optimizer=DDPGof(Adam)(critic, actor, lr=0.000001), loss='mse')
+    actor.compile(optimizer=DDPGof(Adam)(critic, actor, lr=0.000005), loss='mse')
     return actor,critic
 
 actor,critic=make_models()
