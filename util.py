@@ -1,6 +1,8 @@
 from __future__ import division
 import numpy as np
 import keras.backend as K
+
+# Warning: If the critic uses BatchNormalization, then the actor must also.
 def DDPGof(opt):
     class tmp(opt):
         def __init__(self, critic, actor, *args, **kwargs):
