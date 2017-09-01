@@ -15,22 +15,18 @@ def make_arm():
     import nservoarm
     return gym.make('NServoArm-v0')
 
-env=make_arm()
-gamma=0
-#warmup=max(50,5/gamma)
-warmup=10
 renderFlag=True
-
 env = make_arm()
-print("spec= {}".format(env.spec.id))
+
 
 #create actor,critic
+#note: if one network has batchnorm, then the other must also
 def make_models():
     #critic
     oin = Input(shape=env.observation_space.shape,name='observeration')
     ain = Input(shape=env.action_space.shape,name='action')
     x=keras.layers.concatenate([oin, ain])
-    #x=BatchNormalization()(x)
+    x=BatchNormalization()(x)
     x=Dense(64, activation='relu')(x)
     #x=Dropout(.5)(x)
     x=Dense(64, activation='relu')(x)
@@ -45,11 +41,11 @@ def make_models():
 
     #actor
     x=oin
-    #x=BatchNormalization()(x)
+    x=BatchNormalization()(x)
     x=Dense(32,input_shape=env.observation_space.shape)(x)
-    #x=Dense(32,activation='relu')(x)
-    #x=Dense(32,activation='relu')(x)
-    #x=Dense(32,activation='relu')(x)
+    x=Dense(32,activation='relu')(x)
+    x=Dense(32,activation='relu')(x)
+    x=Dense(32,activation='relu')(x)
     x=Dense(16,activation='relu')(x)
     #x=Dropout(.5)(x)
     x=Dense(16,activation='relu')(x)
