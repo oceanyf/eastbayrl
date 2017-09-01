@@ -7,13 +7,13 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 Rsz=200000 #replay buffer size
-N=32 # sample size
+N=320 # sample size
 tau=0.01
 gamma=0.95
-warmup=50
+warmup=5
 renderFlag=False
 noiseFlag=True
-criticVizFlag=True
+criticVizFlag=False
 
 #import project specifics, such as actor/critic models
 from project import *
