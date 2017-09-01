@@ -9,12 +9,12 @@ from matplotlib import pyplot as plt
 Rsz=200000 #replay buffer size
 N=320 # sample size
 tau=0.01
-gamma=0.95
-warmup=50
+gamma=0.5
+warmup=2
 renderFlag=False
 noiseFlag=True
-criticVizFlag=False
-criticVizIdx=[0,1]
+vizFlag=True
+vizIdx=[0, 1]
 
 #import project specifics, such as actor/critic models
 from project import *
@@ -45,7 +45,7 @@ Rdone=np.zeros((Rsz,))
 plt.ion()
 
 def ontype(event): # r  will toggle the rendering, n will togggle noise
-    global renderFlag,noiseFlag,criticVizFlag,env,episodes
+    global renderFlag,noiseFlag,vizFlag,env,episodes
     if event.key == 'r' or event.key == ' ':
         renderFlag=not renderFlag
     elif event.key == 'n':
@@ -55,7 +55,7 @@ def ontype(event): # r  will toggle the rendering, n will togggle noise
     elif event.key == 'e':
         episodes=[]
     elif event.key == 'v':
-        criticVizFlag=not criticVizFlag
+        vizFlag=not vizFlag
 plt.gcf().canvas.mpl_connect('key_press_event',ontype)
 
 rcnt=0
@@ -97,7 +97,7 @@ for i_episode in range(200000):
         Rfull = True
 
     if Rfull:
-        for train_iter in range(len(episode)):
+        for train_iter in range(int(min(rcnt, Rsz)/N)):
             sample = np.random.choice(min(rcnt, Rsz), N)
 
             # train critic on discounted future rewards
@@ -113,13 +113,13 @@ for i_episode in range(200000):
             actorp.set_weights([tau * w + (1 - tau) * wp for wp, w in zip(actorp.get_weights(), actor.get_weights())])
     episodes.append(episode)
     if len(episode)>2:
-        plt.figure(1)
+        fig=plt.figure(1)
         sp=(4,1)
         plt.clf()
         plt.subplot(*sp,1)
         #plt.gca().set_ylim([-1.2,1.2])
         plt.gca().axhline(y=0, color='k')
-        plt.title("{}, Episode {} {}{}".format(env.spec.id,i_episode,"Warming" if (i_episode<warmup) else "","/W noise" if noiseFlag else ""))
+        fig.suptitle("{}, Episode {} {}{}".format(env.spec.id,i_episode,"Warming" if (i_episode<warmup) else "","/W noise" if noiseFlag else ""))
         for i in range(Robs[episode].shape[1]):
             plt.plot(Robs[episode, i], label='obs {}'.format(i))
         plt.legend(loc=1)
@@ -166,39 +166,63 @@ for i_episode in range(200000):
         plt.legend(loc=2)
 
         #third plot
-        if criticVizFlag:
-            plt.title("Qvalue for dims {}".format(criticVizIdx))
+        if vizFlag:
             fig=plt.figure(3)
             ax = plt.gca()
             plt.clf()
+            ax.set_title("Qvalue for obs{}".format(vizIdx))
             #todo: make this a function of the first two action space dimensions
             gsz=100
-            oidx0=criticVizIdx[0]
-            oidx1=criticVizIdx[1]
+            oidx0=vizIdx[0]
+            oidx1=vizIdx[1]
             ndim=env.observation_space.shape[0]
+            nadim=env.action_space.shape[0]
             low=env.observation_space.low
             high=env.observation_space.high
-            X,Y=np.meshgrid(np.linspace(low[oidx0],high[oidx0],gsz),
-                            np.linspace(low[oidx1],high[oidx1],gsz))
+            extent=[low[oidx0],high[oidx0],low[oidx1],high[oidx1]]
+            X,Y=np.meshgrid(np.linspace(high[oidx0],low[oidx0],gsz),
+                            np.linspace(high[oidx1],low[oidx1],gsz))
             tmp=[]
             for idx in range(ndim):
-                if idx in criticVizIdx:
-                    tmp.append(X if idx==criticVizIdx[0] else Y)
+                if idx in vizIdx:
+                    tmp.append(X if idx == vizIdx[0] else Y)
                 else:
                     tmp.append(np.ones_like(X) * Robs[0, idx])
             obs = np.array(tmp).T.reshape((gsz*gsz,ndim))
-            Z = critic.predict([obs,actor.predict(obs)]).reshape(gsz,gsz)
+            act=actor.predict(obs)
+            A=act.reshape(gsz,gsz,nadim)
+            #print("act shape={} A={} act={}, A={}".format(act.shape,A.shape,act[:5],A[1,1]))
+            Z = critic.predict([obs,act]).reshape(gsz,gsz)
             vmin=np.min(Z)
             vmax=np.max(Z)
-            im = plt.imshow(Z, cmap=plt.cm.RdBu_r, vmin=vmin, vmax=vmax, extent=[low[oidx0],high[oidx0],low[oidx1],high[oidx1]])
+            im = plt.imshow(Z, cmap=plt.cm.RdBu_r, vmin=vmin, vmax=vmax, extent=extent)
             im.set_interpolation('bilinear')
             cb = fig.colorbar(im)
             plt.axis([low[0],high[0],low[1],high[1]])
             for i,e in enumerate(episodes):
-                c = 'w' if i < len(episodes)-1 else 'k'
-                plt.scatter(x=Robs[e,1], y=-Robs[e,0], c=c,vmin=vmin, vmax=vmax,s=3)
-                plt.scatter(x=Robs[e,1], y=-Robs[e,0], cmap=plt.cm.RdBu_r, c=Rdfr[e],vmin=vmin, vmax=vmax,s=2)
-            plt.scatter(x=Robs[episodes[-1][-1],1],y=Robs[episodes[-1][-1],0],c='k',s=6)
+                lastone= (i==len(episodes)-1)
+                c = 'black' if lastone else 'white'
+                s = 6 if lastone else 3
+                plt.scatter(x=-Robs[e,1], y=Robs[e,0], cmap=plt.cm.RdBu_r, c=Rdfr[e],vmin=vmin, vmax=vmax,s=s)
+                if lastone:
+                    plt.scatter(x=-Robs[e,1], y=Robs[e,0], c=c,vmin=vmin, vmax=vmax,s=0.05)
+            plt.scatter(x=Robs[episodes[-1][-1],1],y=Robs[episodes[-1][-1],0],c='green',s=s/2)
+
+            fig=plt.figure(4)
+            ax = plt.gca()
+            plt.clf()
+            ax.set_title("Actions for obs{}".format(vizIdx))
+            sp=(nadim,1)
+            for i in range(nadim):
+                plt.subplot(*sp,i+1)
+                avmin=env.observation_space.low[i]
+                avmax=env.observation_space.high[i]
+                im = plt.imshow(A[:,:,i], cmap=plt.cm.RdBu_r, vmin=avmin, vmax=avmax,
+                                extent=extent)
+                im.set_interpolation('bilinear')
+                cb = fig.colorbar(im)
+
+            fig=plt.figure(3)
 
         plt.pause(0.1)
 
