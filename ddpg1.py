@@ -7,7 +7,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 Rsz=200000 #replay buffer size
-N=32 # sample size
+N=320 # sample size
 tau=0.01
 gamma=0.95
 warmup=50
@@ -18,14 +18,11 @@ criticVizIdx=[0,1]
 
 #import project specifics, such as actor/critic models
 from project import *
-
+print("Using {} environment.".format(env.spec.id))
 print('observation space {} high {} low {} {} {}'.format(env.observation_space,env.observation_space.high,env.observation_space.low,env.observation_space.shape,env.observation_space.shape[0]))
 print('action space {} high {} low {}'.format(env.action_space,env.action_space.high,env.action_space.low))
 critic.summary()
 actor.summary()
-
-def scaleDown(obs):
-    return (obs - observationOffset) * observationScale
 
 # create target networks
 criticp=keras.models.clone_model(critic)
@@ -48,11 +45,15 @@ Rdone=np.zeros((Rsz,))
 plt.ion()
 
 def ontype(event): # r  will toggle the rendering, n will togggle noise
-    global renderFlag,noiseFlag,criticVizFlag
+    global renderFlag,noiseFlag,criticVizFlag,env,episodes
     if event.key == 'r' or event.key == ' ':
         renderFlag=not renderFlag
     elif event.key == 'n':
         noiseFlag=not noiseFlag
+    elif event.key == 'g':
+        env.new_goal()
+    elif event.key == 'e':
+        episodes=[]
     elif event.key == 'v':
         criticVizFlag=not criticVizFlag
 plt.gcf().canvas.mpl_connect('key_press_event',ontype)
@@ -64,7 +65,6 @@ QAccHistory = []
 episodes=[]
 for i_episode in range(200000):
     observation1 = env.reset()
-    observation1 = (observation1 - observationOffset) * observationScale
     RewardsHistory.append(0)
     episode=[]
     for t in range(1000):
@@ -76,7 +76,6 @@ for i_episode in range(200000):
         observation1, reward, done, _ = env.step(action)
         if len(observation1.shape)>1 and observation1.shape[-1]==1:
             observation1=np.squeeze(observation1, axis=-1)
-        observation1= scaleDown(observation1)
 
         # insert into replay buffer
         ridx=rcnt%Rsz
@@ -92,6 +91,7 @@ for i_episode in range(200000):
         RewardsHistory[-1]+=reward
         if renderFlag:env.render()
         if done: break
+        if ridx==0: episodes=[] #forget old episodes to avoid wraparound
 
     if (rcnt > N * 5):
         Rfull = True
@@ -176,8 +176,8 @@ for i_episode in range(200000):
             oidx0=criticVizIdx[0]
             oidx1=criticVizIdx[1]
             ndim=env.observation_space.shape[0]
-            low=scaleDown(env.observation_space.low)
-            high=scaleDown(env.observation_space.high)
+            low=env.observation_space.low
+            high=env.observation_space.high
             X,Y=np.meshgrid(np.linspace(low[oidx0],high[oidx0],gsz),
                             np.linspace(low[oidx1],high[oidx1],gsz))
             tmp=[]
@@ -187,10 +187,9 @@ for i_episode in range(200000):
                 else:
                     tmp.append(np.ones_like(X) * Robs[0, idx])
             obs = np.array(tmp).T.reshape((gsz*gsz,ndim))
-            print("obs shape={}".format(obs.shape))
             Z = critic.predict([obs,actor.predict(obs)]).reshape(gsz,gsz)
-            vmin=abs(Z).min()
-            vmax=abs(Z).max()
+            vmin=np.min(Z)
+            vmax=np.max(Z)
             im = plt.imshow(Z, cmap=plt.cm.RdBu_r, vmin=vmin, vmax=vmax, extent=[low[oidx0],high[oidx0],low[oidx1],high[oidx1]])
             im.set_interpolation('bilinear')
             cb = fig.colorbar(im)

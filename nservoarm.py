@@ -24,8 +24,8 @@ class NServoArmEnv(gym.Env):
         self.linkx=np.zeros_like(self.links)
         self.linky=np.zeros_like(self.links)
         self.linka=np.zeros_like(self.links)
-        self.goalx=1
-        self.goaly=1
+        self.goalx=cos(np.pi/4)*np.sum(self.links)
+        self.goaly=self.goalx
 
     def _seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
@@ -55,12 +55,7 @@ class NServoArmEnv(gym.Env):
     def _reset(self):
         self.state= np.zeros_like(self.state)
         self.done=False
-        r=np.sum(self.links)
-        #r *= np.random.uniform(0,1)
-        angle=np.random.uniform(0,np.pi)
-        angle=np.pi/4
-        self.goalx=r*cos(angle)
-        self.goaly=r*sin(angle)
+
         self.state = np.random.uniform(-np.pi,np.pi,size=[len(self.links)+2])
         self.state[-2]=self.goalx
         self.state[-1]=self.goaly
@@ -114,6 +109,13 @@ class NServoArmEnv(gym.Env):
 
 
         return self.viewer.render(return_rgb_array = mode=='rgb_array')
+    def new_goal(self):
+        r=np.sum(self.links)
+        r *= np.random.uniform(0,1)
+        angle=np.random.uniform(0,np.pi)
+        angle=np.pi/4
+        self.goalx=r*cos(angle)
+        self.goaly=r*sin(angle)
 
 def angle_normalize(x):
     return (((x+np.pi) % (2*np.pi)) - np.pi)
