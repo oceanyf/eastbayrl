@@ -13,7 +13,7 @@ gamma=0.95
 warmup=50
 renderFlag=False
 noiseFlag=True
-criticVizFlag=True
+criticVizFlag=False
 criticVizIdx=[0,1]
 
 #import project specifics, such as actor/critic models

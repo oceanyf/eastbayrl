@@ -16,11 +16,11 @@ def make_arm():
     return gym.make('NServoArm-v0')
 
 renderFlag=True
+
 env = make_arm()
 
 
 #create actor,critic
-#note: if one network has batchnorm, then the other must also
 def make_models():
     #critic
     oin = Input(shape=env.observation_space.shape,name='observeration')
@@ -43,9 +43,9 @@ def make_models():
     x=oin
     x=BatchNormalization()(x)
     x=Dense(32,input_shape=env.observation_space.shape)(x)
-    x=Dense(32,activation='relu')(x)
-    x=Dense(32,activation='relu')(x)
-    x=Dense(32,activation='relu')(x)
+    #x=Dense(32,activation='relu')(x)
+    #x=Dense(32,activation='relu')(x)
+    #x=Dense(32,activation='relu')(x)
     x=Dense(16,activation='relu')(x)
     #x=Dropout(.5)(x)
     x=Dense(16,activation='relu')(x)

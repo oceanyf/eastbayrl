@@ -12,7 +12,7 @@ class NServoArmEnv(gym.Env):
 
     def __init__(self):
         self.max_angle=np.pi
-        self.max_speed=.2
+        self.max_speed=0.2
         self.dt=.05
         self.viewer = None
         self.links=[1,1]
@@ -123,5 +123,5 @@ def angle_normalize(x):
 gym.envs.register(
     id='NServoArm-v0',
     entry_point='nservoarm:NServoArmEnv',
-    max_episode_steps=500,
+    max_episode_steps=100,
 )
