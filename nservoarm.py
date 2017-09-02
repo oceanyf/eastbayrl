@@ -3,6 +3,7 @@ from gym import spaces
 from gym.utils import seeding
 import numpy as np
 from math import cos,sin,sqrt
+import random
 
 class NServoArmEnv(gym.Env):
     metadata = {
@@ -12,57 +13,53 @@ class NServoArmEnv(gym.Env):
 
     def __init__(self):
         self.max_angle=np.pi
-        self.max_speed=0.2
+        self.max_speed=1
         self.dt=.05
         self.viewer = None
         self.links=[1,1]
         self.high = np.array([self.max_angle]*len(self.links)+[2,2])
-        self.action_space = spaces.Box(low=-self.max_angle, high=self.max_angle, shape=(len(self.links),))
+        self.action_space = spaces.Box(low=-self.max_speed, high=self.max_speed, shape=(len(self.links),))
         self.observation_space = spaces.Box(low=-3, high=3, shape=(len(self.links)+2,))
         self._seed()
         self.state=np.zeros([2+len(self.links)])
         self.linkx=np.zeros_like(self.links)
         self.linky=np.zeros_like(self.links)
         self.linka=np.zeros_like(self.links)
-        self.goalx=cos(np.pi/4)*np.sum(self.links)
-        self.goaly=self.goalx
+        self.set_goals([(0,np.sum(self.links))])
+        self.random_goals(100)
 
     def _seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
         return [seed]
 
     def _step(self,u):
-        dt = self.dt
-
-        u = np.clip(u, -self.max_angle, self.max_angle)
-
         for i,l in enumerate(self.links):
             th=self.state[i]
-            thdot=(u[i]-th) #
-            thdot=np.clip(thdot, -self.max_speed, self.max_speed)
-            self.state[i] = th + thdot*dt
-
-        x,y=[0,0]
-        angle= 0
-        for i,l in enumerate(self.links):
-            angle+=self.state[i]
-            x=x+l*cos(angle)
-            y=y+l*sin(angle)
-
-        reward = 2-sqrt((self.goalx-x)**2+(self.goaly-y)**2)
+            thdot=np.clip(u[i], -self.max_speed, self.max_speed)
+            self.state[i] = th + thdot*self.dt
+        xs,ys,ts=self.node_loc()
+        d = sqrt((self.goalx-xs[-1])**2+(self.goaly-ys[-1])**2)
+        self.done=(d<0.1)
+        reward = max(10,1/d) if d!=0.0 else 10
+        if np.any(np.less(ys,0)): reward -= 1
+        if np.any(np.greater(u,self.max_speed)): reward-=0.5
         return self._get_obs(), reward, self.done, {}
 
     def _reset(self):
         self.state= np.zeros_like(self.state)
         self.done=False
+        while True: #pick a random but valid state
+            self.state = np.random.uniform(-np.pi,np.pi,size=[len(self.links)+2])
+            xs,ys,ts = self.node_loc()
+            if np.all(np.greater_equal(ys,0)):break
 
-        self.state = np.random.uniform(-np.pi,np.pi,size=[len(self.links)+2])
-        self.state[-2]=self.goalx
-        self.state[-1]=self.goaly
+        self.goalx,self.goaly=random.choice(self.goals)
+        self.state[-2] = self.goalx
+        self.state[-1] = self.goaly
         return self._get_obs()
 
     def _get_obs(self):
-        return np.array(self.state)
+        return np.array(angle_normalize(self.state))
 
     def _render(self, mode='human', close=False):
         if close:
@@ -96,26 +93,41 @@ class NServoArmEnv(gym.Env):
             self.goal_transform = rendering.Transform()
             goal.add_attr(self.goal_transform)
             self.viewer.add_geom(goal)
-        x,y=[0,0]
-        angle= 0
-        for i,l in enumerate(self.links):
-            angle+=self.state[i]
+
+        for px,x,y,t in zip(self.pole_transforms,*self.node_loc()):
             # there is a race condition of some sort, because
-            self.pole_transforms[i].set_rotation(angle)
-            self.pole_transforms[i].set_translation(x,y)
-            x=x+l*cos(angle)
-            y=y+l*sin(angle)
+            px.set_rotation(t)
+            px.set_translation(x,y)
+
         self.goal_transform.set_translation(self.goalx,self.goaly)
 
 
         return self.viewer.render(return_rgb_array = mode=='rgb_array')
-    def new_goal(self):
-        r=np.sum(self.links)
-        r *= np.random.uniform(0,1)
-        angle=np.random.uniform(0,np.pi)
-        angle=np.pi/4
-        self.goalx=r*cos(angle)
-        self.goaly=r*sin(angle)
+
+    def node_loc(self):
+        xs=[0]
+        ys=[0]
+        ts=[np.pi/2] # zero is straight up
+        for i,l in enumerate(self.links):
+            ts.append(ts[-1]+self.state[i])
+            xs.append(xs[-1]+l*cos(ts[-1]))
+            ys.append(ys[-1]+l*sin(ts[-1]))
+        del ts[0]
+        return xs,ys,ts # xs&ys include end effector
+
+    def random_goals(self,n):
+        goals=[]
+        for i in range(n):
+            r = np.sum(self.links)
+            r *= np.random.uniform(0, 1)
+            angle = np.random.uniform(0, np.pi)
+            goals.append((r * cos(angle),r * sin(angle)))
+        self.set_goals(goals)
+
+    def set_goals(self,goals):
+        self.goals=goals
+        self.reset()
+        return
 
 def angle_normalize(x):
     return (((x+np.pi) % (2*np.pi)) - np.pi)
@@ -123,5 +135,5 @@ def angle_normalize(x):
 gym.envs.register(
     id='NServoArm-v0',
     entry_point='nservoarm:NServoArmEnv',
-    max_episode_steps=100,
+    max_episode_steps=300,
 )
