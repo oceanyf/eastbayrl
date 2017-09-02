@@ -5,6 +5,7 @@ import keras
 import keras.backend as K
 import numpy as np
 from matplotlib import pyplot as plt
+from matplotlib.widgets import CheckButtons
 
 Rsz=200000 #replay buffer size
 N=320 # sample size
@@ -116,6 +117,8 @@ for i_episode in range(200000):
         fig=plt.figure(1)
         sp=(4,1)
         plt.clf()
+        #rax = plt.axes([0.05, 0.4, 0.1, 0.15])
+        #check = CheckButtons(rax, ('2 Hz', '4 Hz', '6 Hz'), (False, True, True))
         plt.subplot(*sp,1)
         #plt.gca().set_ylim([-1.2,1.2])
         plt.gca().axhline(y=0, color='k')
@@ -187,7 +190,7 @@ for i_episode in range(200000):
                 if idx in vizIdx:
                     tmp.append(X if idx == vizIdx[0] else Y)
                 else:
-                    tmp.append(np.ones_like(X) * Robs[0, idx])
+                    tmp.append(np.ones_like(X) * Robs[episode[0], idx])
             obs = np.array(tmp).T.reshape((gsz*gsz,ndim))
             act=actor.predict(obs)
             A=act.reshape(gsz,gsz,nadim)
@@ -198,15 +201,24 @@ for i_episode in range(200000):
             im = plt.imshow(Z, cmap=plt.cm.RdBu_r, vmin=vmin, vmax=vmax, extent=extent)
             im.set_interpolation('bilinear')
             cb = fig.colorbar(im)
+            tail = int(1/(1-gamma))
             plt.axis([low[0],high[0],low[1],high[1]])
+            mask=np.array([True]*ndim)
+            mask[vizIdx]=False
             for i,e in enumerate(episodes):
+                # check if rest of episode observations match (i.e. same slice of Q)
+                if np.any(np.logical_and(mask,(Robs[episodes[-1][0]]!=Robs[e][0]))):
+                    continue
                 lastone= (i==len(episodes)-1)
                 c = 'black' if lastone else 'white'
                 s = 6 if lastone else 3
-                plt.scatter(x=-Robs[e,1], y=Robs[e,0], cmap=plt.cm.RdBu_r, c=Rdfr[e],vmin=vmin, vmax=vmax,s=s)
+                plt.scatter(x=-Robs[e[:-tail],1], y=Robs[e[:-tail],0], cmap=plt.cm.RdBu_r, c=Rdfr[e[:-tail]],
+                            vmin=vmin, vmax=vmax,s=s)
                 if lastone:
+
                     plt.scatter(x=-Robs[e,1], y=Robs[e,0], c=c,vmin=vmin, vmax=vmax,s=0.05)
-            plt.scatter(x=Robs[episodes[-1][-1],1],y=Robs[episodes[-1][-1],0],c='green',s=s/2)
+            c = 'green' if Rdone[episodes[-1][-1]] else 'k'
+            plt.scatter(x=-Robs[episodes[-1][-1],1],y=Robs[episodes[-1][-1],0],c=c,s=s*4)
 
             fig=plt.figure(4)
             ax = plt.gca()
@@ -225,5 +237,9 @@ for i_episode in range(200000):
             fig=plt.figure(3)
 
         plt.pause(0.1)
+        if i_episode % 100 == 0:
+            print("Save models")
+            actor.save('actor.h5')
+            critic.save('critic.h5')
 
     print("Episode {} finished after {} timesteps total reward={}".format(i_episode, t + 1, RewardsHistory[-1]))
