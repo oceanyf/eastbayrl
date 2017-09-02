@@ -13,7 +13,14 @@ def make_car():
     return gym.make('MountainCarContinuous-v0')
 def make_arm():
     import nservoarm
-    return gym.make('NServoArm-v0')
+    gym.envs.register(
+        id='NServoArm-v0',
+        entry_point='nservoarm:NServoArmEnv',
+        max_episode_steps=500,
+        kwargs={'ngoals': 1}
+    )
+    env=gym.make('NServoArm-v0')
+    return env
 
 renderFlag=True
 
@@ -52,7 +59,7 @@ def make_models():
     x=Dense(16,activation='relu')(x)
     x=Dense(env.action_space.shape[0],activation='linear')(x)
     actor=Model(oin,x)
-    actor.compile(optimizer=DDPGof(Adam)(critic, actor, lr=0.00005), loss='mse')
+    actor.compile(optimizer=DDPGof(Adam)(critic, actor, lr=0.0001), loss='mse')
     return actor,critic
 
 actor,critic=make_models()

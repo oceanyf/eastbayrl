@@ -11,7 +11,7 @@ class NServoArmEnv(gym.Env):
         'video.frames_per_second' : 30
     }
 
-    def __init__(self):
+    def __init__(self,**kwargs):
         self.max_angle=np.pi
         self.max_speed=1
         self.dt=.05
@@ -26,7 +26,11 @@ class NServoArmEnv(gym.Env):
         self.linky=np.zeros_like(self.links)
         self.linka=np.zeros_like(self.links)
         self.set_goals([(0,np.sum(self.links))])
-        self.random_goals(100)
+        if 'ngoals' in kwargs:
+            self.random_goals(int(kwargs['ngoals']))
+        else:
+            self.random_goals(1)
+        self.deadband=0.05
 
     def _seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
@@ -40,8 +44,12 @@ class NServoArmEnv(gym.Env):
         xs,ys,ts=self.node_loc()
         d = sqrt((self.goalx-xs[-1])**2+(self.goaly-ys[-1])**2)
         self.done=(d<0.1)
-        reward = min(10,1/d) if d!=0.0 else 10
-        if np.any(np.less(ys,0)): reward -= 1
+        endreward=2
+        reward = min(endreward,endreward*self.deadband/d) if d!=0.0 else endreward
+        #reward = 2 if self.done else -d
+        if np.any(np.less(ys,-0.2)):
+            reward = 0
+            self.done=True
         if np.any(np.greater(u,self.max_speed)): reward-=0.5
         return self._get_obs(), reward, self.done, {}
 
@@ -119,7 +127,7 @@ class NServoArmEnv(gym.Env):
         goals=[]
         for i in range(n):
             r = np.sum(self.links)
-            r *= np.random.uniform(0, 1)
+            r *= np.random.uniform(0.2, 1)
             angle = np.random.uniform(0, np.pi)
             goals.append((r * cos(angle),r * sin(angle)))
         self.set_goals(goals)
@@ -132,8 +140,3 @@ class NServoArmEnv(gym.Env):
 def angle_normalize(x):
     return (((x+np.pi) % (2*np.pi)) - np.pi)
 
-gym.envs.register(
-    id='NServoArm-v0',
-    entry_point='nservoarm:NServoArmEnv',
-    max_episode_steps=300,
-)
