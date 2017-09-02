@@ -40,7 +40,7 @@ class NServoArmEnv(gym.Env):
         xs,ys,ts=self.node_loc()
         d = sqrt((self.goalx-xs[-1])**2+(self.goaly-ys[-1])**2)
         self.done=(d<0.1)
-        reward = max(10,1/d) if d!=0.0 else 10
+        reward = min(10,1/d) if d!=0.0 else 10
         if np.any(np.less(ys,0)): reward -= 1
         if np.any(np.greater(u,self.max_speed)): reward-=0.5
         return self._get_obs(), reward, self.done, {}
