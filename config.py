@@ -1,0 +1,11 @@
+Rsz = 200000 #replay buffer size
+N = 320 # batch size
+tau = 0.01
+gamma = .5
+warmup = 2
+renderFlag = False
+showProgress = True
+noiseFlag = True
+vizFlag = True
+vizIdx = [0, 1]
+saveModel = False
