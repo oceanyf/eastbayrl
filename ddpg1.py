@@ -9,7 +9,7 @@ from matplotlib.widgets import CheckButtons
 
 Rsz=200000 #replay buffer size
 N=320 # sample size
-tau=0.01
+tau=0.05
 gamma=0.5
 warmup=2
 renderFlag=False
@@ -117,8 +117,7 @@ for i_episode in range(200000):
         fig=plt.figure(1)
         sp=(4,1)
         plt.clf()
-        #rax = plt.axes([0.05, 0.4, 0.1, 0.15])
-        #check = CheckButtons(rax, ('2 Hz', '4 Hz', '6 Hz'), (False, True, True))
+        plt.subplots_adjust(bottom=0.2)
         plt.subplot(*sp,1)
         #plt.gca().set_ylim([-1.2,1.2])
         plt.gca().axhline(y=0, color='k')
@@ -135,7 +134,6 @@ for i_episode in range(200000):
         plt.plot(actionp,'lightgreen',label='actionp')
         plt.legend(loc=1)
         plt.subplot(*sp,3)
-        plt.gca().axhline(y=0, color='k')
         plt.plot(Rreward[episode], 'r', label='reward')
         plt.legend(loc=1)
         plt.subplot(*sp,4)
@@ -154,6 +152,8 @@ for i_episode in range(200000):
         QAccHistory.append(np.mean(np.abs(Rdfr[episode]-qp)))
         plt.legend(loc=1)
 
+        ax = plt.axes([0.2, 0.01, 0.1, 0.15])
+        check = CheckButtons(ax, ('Render', 'noise', 'episodes','Qviz'), (True, True, True,True))
 
         #second plot
         plt.figure(2)
@@ -211,19 +211,18 @@ for i_episode in range(200000):
                     continue
                 lastone= (i==len(episodes)-1)
                 c = 'black' if lastone else 'white'
-                s = 6 if lastone else 3
+                s = 6 if lastone else 1
                 plt.scatter(x=-Robs[e[:-tail],1], y=Robs[e[:-tail],0], cmap=plt.cm.RdBu_r, c=Rdfr[e[:-tail]],
                             vmin=vmin, vmax=vmax,s=s)
                 if lastone:
-
                     plt.scatter(x=-Robs[e,1], y=Robs[e,0], c=c,vmin=vmin, vmax=vmax,s=0.05)
-            c = 'green' if Rdone[episodes[-1][-1]] else 'k'
-            plt.scatter(x=-Robs[episodes[-1][-1],1],y=Robs[episodes[-1][-1],0],c=c,s=s*4)
+            plt.scatter(x=-Robs[episodes[-1][-1],1],y=Robs[episodes[-1][-1],0],c='green',s=s*4)
 
             fig=plt.figure(4)
             ax = plt.gca()
             plt.clf()
             ax.set_title("Actions for obs{}".format(vizIdx))
+            plt.axis([low[0],high[0],low[1],high[1]])
             sp=(nadim,1)
             for i in range(nadim):
                 plt.subplot(*sp,i+1)
@@ -233,6 +232,9 @@ for i_episode in range(200000):
                                 extent=extent)
                 im.set_interpolation('bilinear')
                 cb = fig.colorbar(im)
+                plt.scatter(x=-Robs[episodes[-1], 1], y=Robs[episodes[-1], 0],c='k',
+                            vmin=avmin, vmax=avmax, s=1)
+                plt.scatter(x=-Robs[episodes[-1][-1], 1], y=Robs[episodes[-1][-1], 0], c='green', s=s * 4)
 
             fig=plt.figure(3)
 
