@@ -37,31 +37,37 @@ class NServoArmEnv(gym.Env):
         return [seed]
 
     def _step(self,u):
+        #move
         for i,l in enumerate(self.links):
             th=self.state[i]
             thdot=np.clip(u[i], -self.max_speed, self.max_speed)
             self.state[i] = th + thdot*self.dt
-        xs,ys,ts=self.node_loc()
+
+        #find new position
+        xs,ys,ts=self.node_pos()
         d = sqrt((self.goalx-xs[-1])**2+(self.goaly-ys[-1])**2)
-        self.done=(d<0.1)
-        endreward=2
-        reward = min(endreward,endreward*self.deadband/d) if d!=0.0 else endreward
+
+        # determine reward
+        self.done=(d<self.deadband)
+        reward = (2*min(1,self.deadband/d) if d!=0.0 else 1 )-self.lastd
         #reward = 2 if self.done else -d
+        # or np.any(np.greater(u,self.max_speed))
         if np.any(np.less(ys,-0.2)):
+            print("Done ys={} u={}/{} d={}/{}".format(ys,u,self.max_speed,d,self.deadband))
             reward = 0
             self.done=True
-        if np.any(np.greater(u,self.max_speed)): reward-=0.5
+        self.lastd = d
         return self._get_obs(), reward, self.done, {}
 
     def _reset(self):
         self.state= np.zeros_like(self.state)
         self.done=False
+        self.goalx,self.goaly=random.choice(self.goals)
         while True: #pick a random but valid state
             self.state = np.random.uniform(-np.pi,np.pi,size=[len(self.links)+2])
-            xs,ys,ts = self.node_loc()
+            xs,ys,ts = self.node_pos()
+            self.lastd=sqrt((self.goalx - xs[-1]) ** 2 + (self.goaly - ys[-1]) ** 2)
             if np.all(np.greater_equal(ys,0)):break
-
-        self.goalx,self.goaly=random.choice(self.goals)
         self.state[-2] = self.goalx
         self.state[-1] = self.goaly
         return self._get_obs()
@@ -102,7 +108,7 @@ class NServoArmEnv(gym.Env):
             goal.add_attr(self.goal_transform)
             self.viewer.add_geom(goal)
 
-        for px,x,y,t in zip(self.pole_transforms,*self.node_loc()):
+        for px,x,y,t in zip(self.pole_transforms, *self.node_pos()):
             # there is a race condition of some sort, because
             px.set_rotation(t)
             px.set_translation(x,y)
@@ -112,7 +118,7 @@ class NServoArmEnv(gym.Env):
 
         return self.viewer.render(return_rgb_array = mode=='rgb_array')
 
-    def node_loc(self):
+    def node_pos(self):
         xs=[0]
         ys=[0]
         ts=[np.pi/2] # zero is straight up
