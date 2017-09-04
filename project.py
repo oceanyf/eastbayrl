@@ -30,10 +30,13 @@ def make_models():
     #critic
     oin = Input(shape=env.observation_space.shape,name='observeration')
     ain = Input(shape=env.action_space.shape,name='action')
-    x=keras.layers.concatenate([oin, ain])
+    x=oin
     #x=BatchNormalization()(x)
+    x=keras.layers.concatenate([x, ain])
     x=Dense(64, activation='relu')(x)
     #x=Dropout(.5)(x)
+    x=Dense(64, activation='relu')(x)
+    x=Dense(64, activation='relu')(x)
     x=Dense(64, activation='relu')(x)
     x=Dense(64, activation='relu')(x)
     #x=Dropout(.5)(x)
@@ -48,9 +51,9 @@ def make_models():
     x=oin
     #x=BatchNormalization()(x)
     x=Dense(32,input_shape=env.observation_space.shape, activation='relu')(x)
-    #x=Dense(32,activation='relu')(x)
-    #x=Dense(32,activation='relu')(x)
-    #x=Dense(32,activation='relu')(x)
+    x=Dense(32,activation='relu')(x)
+    x=Dense(32,activation='relu')(x)
+    x=Dense(32,activation='relu')(x)
     x=Dense(16,activation='relu')(x)
     #x=Dropout(.5)(x)
     x=Dense(16,activation='relu')(x)
