@@ -6,16 +6,8 @@ import keras.backend as K
 import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.widgets import CheckButtons
-
-Rsz=200000 #replay buffer size
-N=320 # sample size
-tau=0.05
-gamma=0.5
-warmup=2
-renderFlag=False
-noiseFlag=True
-vizFlag=True
-vizIdx=[0, 1]
+from config import *
+from display import display_progress
 
 #import project specifics, such as actor/critic models
 from project import *
@@ -35,12 +27,9 @@ actorp.set_weights(actor.get_weights())
 
 
 #allocate replay buffers
-Robs=np.zeros([Rsz] + list(env.observation_space.shape))
-Robs1=np.zeros_like(Robs)
-Rreward=np.zeros((Rsz,))
-Rdfr=np.zeros((Rsz,))
-Raction=np.zeros([Rsz] + list(env.action_space.shape))
-Rdone=np.zeros((Rsz,))
+replay_buffer = {'obs': np.zeros([Rsz] + list(env.observation_space.shape)),
+                'obs1': np.zeros([Rsz] + list(env.observation_space.shape)),
+                'reward': np.zeros((Rsz,)), 'done': np.zeros((Rsz,)), 'action': np.zeros([Rsz] + list(env.action_space.shape))}
 
 #set up the plotting
 plt.ion()
@@ -62,35 +51,35 @@ plt.gcf().canvas.mpl_connect('key_press_event',ontype)
 rcnt=0
 Rfull=False
 RewardsHistory = []
-QAccHistory = []
+Rdfr = np.zeros((Rsz,))
 episodes=[]
+
 for i_episode in range(200000):
     observation1 = env.reset()
     RewardsHistory.append(0)
-    episode=[]
+    episode = []
     for t in range(1000):
-        observation=observation1
-
         #take step using the action based on actor
-        action = actor.predict(np.expand_dims(observation,axis=0))[0]
+        observation = observation1
+        action = actor.predict(np.expand_dims(observation, axis=0))[0]
         if noiseFlag: action += exploration.sample()
         observation1, reward, done, _ = env.step(action)
-        if len(observation1.shape)>1 and observation1.shape[-1]==1:
-            observation1=np.squeeze(observation1, axis=-1)
+        if len(observation1.shape) > 1 and observation1.shape[-1] == 1:
+            observation1 = np.squeeze(observation1, axis=-1)
 
         # insert into replay buffer
-        ridx=rcnt%Rsz
-        rcnt+=1
-        Robs[ridx]=observation
-        Raction[ridx]=action
-        Rreward[ridx]=reward
-        Rdone[ridx]=done
-        Robs1[ridx]=observation1
+        ridx = rcnt%Rsz
+        rcnt += 1
+        replay_buffer['obs'][ridx] = observation
+        replay_buffer['obs1'][ridx] = observation1
+        replay_buffer['action'][ridx] = action
+        replay_buffer['reward'][ridx] = reward
+        replay_buffer['done'][ridx] = done
 
         #book keeping
         episode.append(ridx)
-        RewardsHistory[-1]+=reward
-        if renderFlag:env.render()
+        RewardsHistory[-1] += reward
+        if renderFlag: env.render()
         if done: break
         if ridx==0: episodes=[] #forget old episodes to avoid wraparound
 
@@ -102,146 +91,22 @@ for i_episode in range(200000):
             sample = np.random.choice(min(rcnt, Rsz), N)
 
             # train critic on discounted future rewards
-            yq = (Rreward[sample] + gamma * (criticp.predict([Robs1[sample], actorp.predict(Robs1[sample])])[:, 0]))
-            critic.train_on_batch([Robs[sample], Raction[sample]], yq)
+            yq = (replay_buffer['reward'][sample] + gamma * (criticp.predict([replay_buffer['obs1'][sample], actorp.predict(replay_buffer['obs1'][sample])])[:, 0]))
+            critic.train_on_batch([replay_buffer['obs'][sample], replay_buffer['action'][sample]], yq)
 
             # train the actor to maximize Q
             if i_episode > warmup:
-                actor.train_on_batch(Robs[sample], np.zeros((N,*actor.output_shape[1:])))
+                actor.train_on_batch(replay_buffer['obs'][sample], np.zeros((N,*actor.output_shape[1:])))
 
             # update target networks
             criticp.set_weights([tau * w + (1 - tau) * wp for wp, w in zip(criticp.get_weights(), critic.get_weights())])
             actorp.set_weights([tau * w + (1 - tau) * wp for wp, w in zip(actorp.get_weights(), actor.get_weights())])
     episodes.append(episode)
-    if len(episode)>2:
-        fig=plt.figure(1)
-        sp=(4,1)
-        plt.clf()
-        plt.subplots_adjust(bottom=0.2)
-        plt.subplot(*sp,1)
-        #plt.gca().set_ylim([-1.2,1.2])
-        plt.gca().axhline(y=0, color='k')
-        fig.suptitle("{}, Episode {} {}{}".format(env.spec.id,i_episode,"Warming" if (i_episode<warmup) else "","/W noise" if noiseFlag else ""))
-        for i in range(Robs[episode].shape[1]):
-            plt.plot(Robs[episode, i], label='obs {}'.format(i))
-        plt.legend(loc=1)
-        plt.subplot(*sp,2)
-        plt.gca().axhline(y=0, color='k')
-        plt.plot(Raction[episode], 'g', label='action taken')
-        actionp=actorp.predict(Robs[episode])
-        action=actor.predict(Robs[episode])
-        plt.plot(action,'red',label='action')
-        plt.plot(actionp,'lightgreen',label='actionp')
-        plt.legend(loc=1)
-        plt.subplot(*sp,3)
-        plt.plot(Rreward[episode], 'r', label='reward')
-        plt.legend(loc=1)
-        plt.subplot(*sp,4)
-        plt.gca().axhline(y=0, color='k')
-        q=critic.predict([Robs[episode], Raction[episode]])
-        plt.plot(q,'k',label='Q')
-        qp=criticp.predict([Robs[episode], Raction[episode]])
-        plt.plot(qp,'gray',label='Qp')
-        Rdfr[episode]=Rreward[episode]
-        last=0
-        for i in reversed(episode):
-            Rdfr[i]+= gamma * last
-            last=Rdfr[i]
-
-        plt.plot(Rdfr[episode], 'r', label='R')
-        QAccHistory.append(np.mean(np.abs(Rdfr[episode]-qp)))
-        plt.legend(loc=1)
-
-        ax = plt.axes([0.2, 0.01, 0.1, 0.15])
-        check = CheckButtons(ax, ('Render', 'noise', 'episodes','Qviz'), (True, True, True,True))
-
-        #second plot
-        plt.figure(2)
-        sp=(2,1)
-        plt.clf()
-        plt.subplot(*sp,1)
-        plt.gca().axhline(y=0, color='k')
-        plt.plot(RewardsHistory, 'r', label='reward history')
-        plt.legend(loc=2)
-        plt.subplot(*sp,2)
-        plt.gca().axhline(y=0, color='k')
-        plt.plot(QAccHistory, 'r', label='Qloss history')
-        plt.legend(loc=2)
-
-        #third plot
-        if vizFlag:
-            fig=plt.figure(3)
-            ax = plt.gca()
-            plt.clf()
-            ax.set_title("Qvalue for obs{}".format(vizIdx))
-            #todo: make this a function of the first two action space dimensions
-            gsz=100
-            oidx0=vizIdx[0]
-            oidx1=vizIdx[1]
-            ndim=env.observation_space.shape[0]
-            nadim=env.action_space.shape[0]
-            low=env.observation_space.low
-            high=env.observation_space.high
-            extent=[low[oidx0],high[oidx0],low[oidx1],high[oidx1]]
-            X,Y=np.meshgrid(np.linspace(high[oidx0],low[oidx0],gsz),
-                            np.linspace(high[oidx1],low[oidx1],gsz))
-            tmp=[]
-            for idx in range(ndim):
-                if idx in vizIdx:
-                    tmp.append(X if idx == vizIdx[0] else Y)
-                else:
-                    tmp.append(np.ones_like(X) * Robs[episode[0], idx])
-            obs = np.array(tmp).T.reshape((gsz*gsz,ndim))
-            act=actor.predict(obs)
-            A=act.reshape(gsz,gsz,nadim)
-            #print("act shape={} A={} act={}, A={}".format(act.shape,A.shape,act[:5],A[1,1]))
-            Z = critic.predict([obs,act]).reshape(gsz,gsz)
-            vmin=np.min(Z)
-            vmax=np.max(Z)
-            im = plt.imshow(Z, cmap=plt.cm.RdBu_r, vmin=vmin, vmax=vmax, extent=extent)
-            im.set_interpolation('bilinear')
-            cb = fig.colorbar(im)
-            tail = int(1/(1-gamma))
-            plt.axis([low[0],high[0],low[1],high[1]])
-            mask=np.array([True]*ndim)
-            mask[vizIdx]=False
-            for i,e in enumerate(episodes):
-                # check if rest of episode observations match (i.e. same slice of Q)
-                if np.any(np.logical_and(mask,(Robs[episodes[-1][0]]!=Robs[e][0]))):
-                    continue
-                lastone= (i==len(episodes)-1)
-                c = 'black' if lastone else 'white'
-                s = 6 if lastone else 1
-                plt.scatter(x=-Robs[e[:-tail],1], y=Robs[e[:-tail],0], cmap=plt.cm.RdBu_r, c=Rdfr[e[:-tail]],
-                            vmin=vmin, vmax=vmax,s=s)
-                if lastone:
-                    plt.scatter(x=-Robs[e,1], y=Robs[e,0], c=c,vmin=vmin, vmax=vmax,s=0.05)
-            plt.scatter(x=-Robs[episodes[-1][-1],1],y=Robs[episodes[-1][-1],0],c='green',s=s*4)
-
-            fig=plt.figure(4)
-            ax = plt.gca()
-            plt.clf()
-            ax.set_title("Actions for obs{}".format(vizIdx))
-            plt.axis([low[0],high[0],low[1],high[1]])
-            sp=(nadim,1)
-            for i in range(nadim):
-                plt.subplot(*sp,i+1)
-                avmin=env.observation_space.low[i]
-                avmax=env.observation_space.high[i]
-                im = plt.imshow(A[:,:,i], cmap=plt.cm.RdBu_r, vmin=avmin, vmax=avmax,
-                                extent=extent)
-                im.set_interpolation('bilinear')
-                cb = fig.colorbar(im)
-                plt.scatter(x=-Robs[episodes[-1], 1], y=Robs[episodes[-1], 0],c='k',
-                            vmin=avmin, vmax=avmax, s=1)
-                plt.scatter(x=-Robs[episodes[-1][-1], 1], y=Robs[episodes[-1][-1], 0], c='green', s=s * 4)
-
-            fig=plt.figure(3)
-
-        plt.pause(0.1)
-        if i_episode % 100 == 0:
-            print("Save models")
-            actor.save('actor.h5')
-            critic.save('critic.h5')
-
+    if len(episode) > 2 and showProgress:
+        display_progress(replay_buffer, RewardsHistory, Rdfr, env, episode, episodes, i_episode, actor, actorp, critic,
+                         criticp)
+    if saveModel and i_episode % 100 == 0:
+        print("Save models")
+        actor.save('actor.h5')
+        critic.save('critic.h5')
     print("Episode {} finished after {} timesteps total reward={}".format(i_episode, t + 1, RewardsHistory[-1]))

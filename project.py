@@ -22,8 +22,6 @@ def make_arm():
     env=gym.make('NServoArm-v0')
     return env
 
-renderFlag=True
-
 env = make_arm()
 
 
@@ -49,7 +47,7 @@ def make_models():
     #actor
     x=oin
     #x=BatchNormalization()(x)
-    x=Dense(32,input_shape=env.observation_space.shape)(x)
+    x=Dense(32,input_shape=env.observation_space.shape, activation='relu')(x)
     #x=Dense(32,activation='relu')(x)
     #x=Dense(32,activation='relu')(x)
     #x=Dense(32,activation='relu')(x)
