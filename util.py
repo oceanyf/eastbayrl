@@ -14,6 +14,23 @@ def DDPGof(opt):
             return K.gradients(self.combinedloss,self.actor.trainable_weights)
     return tmp
 
+from matplotlib.widgets import CheckButtons
+
+
+class ToggleFlags:
+    def __init__(self):
+        self.names=[]
+    def add(self,name,value=False):
+        if name in ['add','showat','__init__']:return
+        self.names.append(name)
+        self.__setattr__(name,value)
+    def showat(self,ax):
+        v=[self.__getattribute__(name) for name in self.names]
+        self.check=CheckButtons(ax,self.names,v)
+        def func(label):
+            self.__setattr__(label,not self.__getattribute__(label))
+            print("clicked")
+        self.check.on_clicked(func)
 
 
 # borrowed from https://github.com/matthiasplappert/keras-rl.git
