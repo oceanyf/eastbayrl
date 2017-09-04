@@ -5,7 +5,7 @@ import keras
 import keras.backend as K
 import numpy as np
 from matplotlib import pyplot as plt
-from matplotlib.widgets import CheckButtons
+from util import ToggleFlags
 from config import *
 from display import display_progress
 
@@ -34,19 +34,12 @@ replay_buffer = {'obs': np.zeros([Rsz] + list(env.observation_space.shape)),
 #set up the plotting
 plt.ion()
 
-def ontype(event): # r  will toggle the rendering, n will togggle noise
-    global renderFlag,noiseFlag,vizFlag,env,episodes
-    if event.key == 'r' or event.key == ' ':
-        renderFlag=not renderFlag
-    elif event.key == 'n':
-        noiseFlag=not noiseFlag
-    elif event.key == 'g':
-        env.new_goal()
-    elif event.key == 'e':
-        episodes=[]
-    elif event.key == 'v':
-        vizFlag=not vizFlag
-plt.gcf().canvas.mpl_connect('key_press_event',ontype)
+flags=ToggleFlags()
+flags.add('noise',True)
+flags.add('render',False)
+flags.add('clear')
+flags.add('viz')
+
 
 rcnt=0
 Rfull=False
@@ -62,7 +55,7 @@ for i_episode in range(200000):
         #take step using the action based on actor
         observation = observation1
         action = actor.predict(np.expand_dims(observation, axis=0))[0]
-        if noiseFlag: action += exploration.sample()
+        if flags.noise: action += exploration.sample()
         observation1, reward, done, _ = env.step(action)
         if len(observation1.shape) > 1 and observation1.shape[-1] == 1:
             observation1 = np.squeeze(observation1, axis=-1)
@@ -79,7 +72,7 @@ for i_episode in range(200000):
         #book keeping
         episode.append(ridx)
         RewardsHistory[-1] += reward
-        if renderFlag: env.render()
+        if flags.render: env.render()
         if done: break
         if ridx==0: episodes=[] #forget old episodes to avoid wraparound
 
@@ -101,9 +94,12 @@ for i_episode in range(200000):
             # update target networks
             criticp.set_weights([tau * w + (1 - tau) * wp for wp, w in zip(criticp.get_weights(), critic.get_weights())])
             actorp.set_weights([tau * w + (1 - tau) * wp for wp, w in zip(actorp.get_weights(), actor.get_weights())])
+    if flags.clear:
+        episodes=[]
+        flags.clear=False
     episodes.append(episode)
     if len(episode) > 2 and showProgress:
-        display_progress(replay_buffer, RewardsHistory, Rdfr, env, episode, episodes, i_episode, actor, actorp, critic,
+        display_progress(replay_buffer, flags, RewardsHistory, Rdfr, env, episode, episodes, i_episode, actor, actorp, critic,
                          criticp)
     if saveModel and i_episode % 100 == 0:
         print("Save models")
