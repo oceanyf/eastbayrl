@@ -36,9 +36,9 @@ plt.ion()
 
 flags=ToggleFlags()
 flags.add('noise',True)
-flags.add('render',False)
+flags.add('render',True)
 flags.add('clear')
-flags.add('viz')
+flags.add('viz',True)
 
 
 rcnt=0

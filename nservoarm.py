@@ -37,7 +37,7 @@ class NServoArmEnv(gym.Env):
         return [seed]
 
     def _step(self,u):
-        #move
+         #move
         for i,l in enumerate(self.links):
             th=self.state[i]
             thdot=np.clip(u[i], -self.max_speed, self.max_speed)
@@ -50,12 +50,12 @@ class NServoArmEnv(gym.Env):
         # determine reward
         self.done=(d<self.deadband)
         reward = (2*min(1,self.deadband/d) if d!=0.0 else 1 )-self.lastd
-        #reward = 2 if self.done else -d
+        reward += 2 if self.done else -.01 # incentive to get something done
         # or np.any(np.greater(u,self.max_speed))
         if np.any(np.less(ys,-0.2)):
-            print("Done ys={} u={}/{} d={}/{}".format(ys,u,self.max_speed,d,self.deadband))
-            reward = 0
-            self.done=True
+            #print("Done ys={} u={}/{} d={}/{}".format(ys,u,self.max_speed,d,self.deadband))
+            reward -= 1
+            #self.done=True
         self.lastd = d
         return self._get_obs(), reward, self.done, {}
 
@@ -67,7 +67,7 @@ class NServoArmEnv(gym.Env):
             self.state = np.random.uniform(-np.pi,np.pi,size=[len(self.links)+2])
             xs,ys,ts = self.node_pos()
             self.lastd=sqrt((self.goalx - xs[-1]) ** 2 + (self.goaly - ys[-1]) ** 2)
-            if np.all(np.greater_equal(ys,0)):break
+            if np.all(np.greater_equal(ys[1:],0.2)):break
         self.state[-2] = self.goalx
         self.state[-1] = self.goaly
         return self._get_obs()
@@ -133,8 +133,8 @@ class NServoArmEnv(gym.Env):
         goals=[]
         for i in range(n):
             r = np.sum(self.links)
-            r *= np.random.uniform(0.2, 1)
-            angle = np.random.uniform(0, np.pi)
+            r *= np.random.uniform(0.3, 1)
+            angle = np.random.uniform(0.2, np.pi-0.2)
             goals.append((r * cos(angle),r * sin(angle)))
         self.set_goals(goals)
 
