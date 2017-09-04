@@ -31,6 +31,7 @@ class ToggleFlags:
             self.__setattr__(label,not self.__getattribute__(label))
             print("clicked")
         self.check.on_clicked(func)
+# wrap environment and add UI
 
 
 # borrowed from https://github.com/matthiasplappert/keras-rl.git

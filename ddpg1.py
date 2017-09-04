@@ -96,7 +96,6 @@ for i_episode in range(200000):
             actorp.set_weights([tau * w + (1 - tau) * wp for wp, w in zip(actorp.get_weights(), actor.get_weights())])
     if flags.clear:
         episodes=[]
-        flags.clear=False
     episodes.append(episode)
     if len(episode) > 2 and showProgress:
         display_progress(replay_buffer, flags, RewardsHistory, Rdfr, env, episode, episodes, i_episode, actor, actorp, critic,
