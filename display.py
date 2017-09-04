@@ -1,21 +1,21 @@
 from matplotlib import pyplot as plt
+from matplotlib.widgets import CheckButtons
 import numpy as np
 from config import *
 
-
-def display_progress(replay_buffer, RewardsHistory, Rdfr, env, episode, episodes, i_episode, actor, actorp, critic, criticp):
+def display_progress(replay_buffer, flags, RewardsHistory, Rdfr, env, episode, episodes, i_episode, actor, actorp, critic, criticp):
     QAccHistory = []
 
     fig = plt.figure(1)
     sp = (4, 1)
     plt.clf()
-    # rax = plt.axes([0.05, 0.4, 0.1, 0.15])
-    # check = CheckButtons(rax, ('2 Hz', '4 Hz', '6 Hz'), (False, True, True))
+
     plt.subplot(*sp, 1)
+    plt.subplots_adjust(left=0.2)
     # plt.gca().set_ylim([-1.2,1.2])
     plt.gca().axhline(y=0, color='k')
     fig.suptitle("{}, Episode {} {}{}".format(env.spec.id, i_episode, "Warming" if (i_episode < warmup) else "",
-                                              "/W noise" if noiseFlag else ""))
+                                              "/W noise" if flags.noise else ""))
     for i in range(replay_buffer['obs'][episode].shape[1]):
         plt.plot(replay_buffer['obs'][episode, i], label='obs {}'.format(i))
     plt.legend(loc=1)
@@ -47,6 +47,10 @@ def display_progress(replay_buffer, RewardsHistory, Rdfr, env, episode, episodes
     QAccHistory.append(np.mean(np.abs(Rdfr[episode] - qp)))
     plt.legend(loc=1)
 
+    # simulation control widgets
+    ax = plt.axes([0.01, 0.01, 0.1, 0.15])
+    flags.showat(ax)
+
     # second plot
     plt.figure(2)
     sp = (2, 1)
@@ -61,7 +65,7 @@ def display_progress(replay_buffer, RewardsHistory, Rdfr, env, episode, episodes
     plt.legend(loc=2)
 
     # third plot
-    if vizFlag:
+    if flags.viz:
         fig = plt.figure(3)
         ax = plt.gca()
         plt.clf()
@@ -104,8 +108,8 @@ def display_progress(replay_buffer, RewardsHistory, Rdfr, env, episode, episodes
             lastone = (i == len(episodes) - 1)
             c = 'black' if lastone else 'white'
             s = 6 if lastone else 3
-            #plt.scatter(x=-replay_buffer['obs'][e[:-tail], 1], y=replay_buffer['obs'][e[:-tail], 0], cmap=plt.cm.RdBu_r, c=Rdfr[e[:-tail]],
-            #            vmin=vmin, vmax=vmax, s=s)
+            plt.scatter(x=-replay_buffer['obs'][e[:-tail], 1], y=replay_buffer['obs'][e[:-tail], 0], cmap=plt.cm.RdBu_r, c=Rdfr[e[:-tail]],
+                        vmin=vmin, vmax=vmax, s=s)
             if lastone:
                 plt.scatter(x=-replay_buffer['obs'][e, 1], y=replay_buffer['obs'][e, 0], c=c, vmin=vmin, vmax=vmax, s=0.05)
         c = 'green' if replay_buffer['done'][episodes[-1][-1]] else 'k'
@@ -115,6 +119,7 @@ def display_progress(replay_buffer, RewardsHistory, Rdfr, env, episode, episodes
         ax = plt.gca()
         plt.clf()
         ax.set_title("Actions for obs{}".format(vizIdx))
+        plt.axis([low[0], high[0], low[1], high[1]])
         sp = (nadim, 1)
         for i in range(nadim):
             plt.subplot(*sp, i + 1)
@@ -124,5 +129,8 @@ def display_progress(replay_buffer, RewardsHistory, Rdfr, env, episode, episodes
                             extent=extent)
             im.set_interpolation('bilinear')
             cb = fig.colorbar(im)
+            plt.scatter(x=-replay_buffer['obs'][episodes[-1], 1], y=replay_buffer['obs'][episodes[-1], 0], c='k',
+                                vmin=avmin, vmax=avmax, s=1)
+            plt.scatter(x=-replay_buffer['obs'][episodes[-1][-1], 1], y=replay_buffer['obs'][episodes[-1][-1], 0], c='green', s=s * 4)
 
     plt.pause(0.1)
