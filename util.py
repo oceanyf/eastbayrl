@@ -2,6 +2,9 @@ from __future__ import division
 import numpy as np
 import keras.backend as K
 
+def kwargs(**kwargs): #useful for prepackaging arguments
+    return kwargs
+
 # Warning: If the critic uses BatchNormalization, then the actor must also.
 def DDPGof(opt):
     class tmp(opt):
