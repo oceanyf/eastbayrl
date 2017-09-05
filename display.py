@@ -1,11 +1,20 @@
 from matplotlib import pyplot as plt
-from matplotlib.widgets import CheckButtons
+import matplotlib.animation as animation
 import numpy as np
 from config import *
+from movieplot import MoviePlot
+
+movie=None
 
 def display_progress(replay_buffer, flags, RewardsHistory, Rdfr, env, episode, episodes, i_episode, actor, actorp, critic, criticp):
     QAccHistory = []
+    global movie
 
+    if flags.movie and not movie:
+        m={1:"episode",2:"trends",3:''}
+        if flags.viz:
+            m.update({3:'critic',4:'actor'})
+        movie=MoviePlot(m)
     fig = plt.figure(1)
     sp = (4, 1)
     plt.clf()
@@ -48,7 +57,7 @@ def display_progress(replay_buffer, flags, RewardsHistory, Rdfr, env, episode, e
     plt.legend(loc=1)
 
     # simulation control widgets
-    ax = plt.axes([0.01, 0.01, 0.1, 0.15])
+    ax = plt.axes([0.01, 0.01, 0.1, 0.2])
     flags.showat(ax)
 
     # second plot
@@ -115,12 +124,13 @@ def display_progress(replay_buffer, flags, RewardsHistory, Rdfr, env, episode, e
         c = 'green' if replay_buffer['done'][episodes[-1][-1]] else 'k'
         plt.scatter(x=-replay_buffer['obs'][episodes[-1][-1], 1], y=replay_buffer['obs'][episodes[-1][-1], 0], c=c, s=s * 4)
 
+
         fig = plt.figure(4)
         ax = plt.gca()
         plt.clf()
         ax.set_title("Actions for obs{}".format(vizIdx))
         plt.axis([low[0], high[0], low[1], high[1]])
-        sp = (nadim, 1)
+        sp = (1,nadim)
         for i in range(nadim):
             plt.subplot(*sp, i + 1)
             avmin = env.observation_space.low[i]
@@ -132,5 +142,6 @@ def display_progress(replay_buffer, flags, RewardsHistory, Rdfr, env, episode, e
             plt.scatter(x=-replay_buffer['obs'][episodes[-1], 1], y=replay_buffer['obs'][episodes[-1], 0], c='k',
                                 vmin=avmin, vmax=avmax, s=1)
             plt.scatter(x=-replay_buffer['obs'][episodes[-1][-1], 1], y=replay_buffer['obs'][episodes[-1][-1], 0], c='green', s=s * 4)
-
+        if movie:
+            movie.grab_frames()
     plt.pause(0.1)

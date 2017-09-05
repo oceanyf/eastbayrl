@@ -9,6 +9,7 @@ from util import ToggleFlags
 from config import *
 from display import display_progress
 
+
 #import project specifics, such as actor/critic models
 from project import *
 print("Using {} environment.".format(env.spec.id))
@@ -39,7 +40,7 @@ flags.add('noise',True)
 flags.add('render',True)
 flags.add('clear')
 flags.add('viz',True)
-
+flags.add('movie',True)
 
 rcnt=0
 Rfull=False
