@@ -12,6 +12,7 @@ class Config(object):
         self.viz_idx = [0, 1]
         self.show_progress = True
         self.save_model = False
+        self.max_episodes = 200000
 
 Rsz = 200000 #replay buffer size
 N = 320 # batch size
