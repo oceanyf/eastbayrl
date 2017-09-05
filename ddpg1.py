@@ -10,7 +10,7 @@ import argparse
 from config import *
 
 
-def ddpg_training(plt,kwargs=None):
+def ddpg_training(plt,args=None):
 
     print("Using {} environment.".format(env.spec.id))
     print('observation space {} high {} low {} {} {}'.format(env.observation_space,env.observation_space.high,env.observation_space.low,env.observation_space.shape,env.observation_space.shape[0]))
@@ -37,7 +37,7 @@ def ddpg_training(plt,kwargs=None):
     from util import ToggleFlags
     from display import display_progress
 
-    flags=ToggleFlags(kwargs)
+    flags=ToggleFlags(args)
     flags.add('noise',True)
     flags.add('render',True)
     flags.add('clear')
@@ -123,4 +123,4 @@ if __name__ == "__main__":
         kwargs['render']=False
         kwargs['movie']=True
     import matplotlib.pyplot as plt
-    ddpg_training(plt,kwargs)
+    ddpg_training(plt,unknownargs)
