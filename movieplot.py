@@ -19,3 +19,7 @@ class MoviePlot:
     def grab_frames(self):
         for w in self.writers:
             w.grab_frame()
+
+    def finish(self):
+        for w in self.writers:
+            w.finish()
