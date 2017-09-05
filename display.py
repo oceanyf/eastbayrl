@@ -1,12 +1,11 @@
-from matplotlib import pyplot as plt
-import matplotlib.animation as animation
+
 import numpy as np
 from config import *
 from movieplot import MoviePlot
 
 movie=None
 
-def display_progress(replay_buffer, flags, RewardsHistory, Rdfr, env, episode, episodes, i_episode, actor, actorp, critic, criticp):
+def display_progress(replay_buffer, flags, plt, RewardsHistory, Rdfr, env, episode, episodes, i_episode, actor, actorp, critic, criticp):
     QAccHistory = []
     global movie
 
@@ -15,6 +14,9 @@ def display_progress(replay_buffer, flags, RewardsHistory, Rdfr, env, episode, e
         if flags.viz:
             m.update({3:'critic',4:'actor'})
         movie=MoviePlot(m)
+    if not flags.movie and movie:
+        movie.finish()
+        movie=None
     fig = plt.figure(1)
     sp = (4, 1)
     plt.clf()
@@ -64,6 +66,8 @@ def display_progress(replay_buffer, flags, RewardsHistory, Rdfr, env, episode, e
     plt.figure(2)
     sp = (2, 1)
     plt.clf()
+    fig.suptitle("{}, Trends {}{}".format(env.spec.id,  "Warming" if (i_episode < warmup) else "",
+                                              "/W noise" if flags.noise else ""))
     plt.subplot(*sp, 1)
     plt.gca().axhline(y=0, color='k')
     plt.plot(RewardsHistory, 'r', label='reward history')
@@ -108,21 +112,18 @@ def display_progress(replay_buffer, flags, RewardsHistory, Rdfr, env, episode, e
         cb = fig.colorbar(im)
         tail = int(1 / (1 - gamma))
         plt.axis([low[0], high[0], low[1], high[1]])
-        mask = np.array([True] * ndim)
-        mask[vizIdx] = False
-        for i, e in enumerate(episodes):
-            # check if rest of episode observations match (i.e. same slice of Q)
-            if np.any(np.logical_and(mask, (replay_buffer['obs'][episodes[-1][0]] != replay_buffer['obs'][e][0]))):
-                continue
-            lastone = (i == len(episodes) - 1)
-            c = 'black' if lastone else 'white'
-            s = 6 if lastone else 3
-            plt.scatter(x=-replay_buffer['obs'][e[:-tail], 1], y=replay_buffer['obs'][e[:-tail], 0], cmap=plt.cm.RdBu_r, c=Rdfr[e[:-tail]],
-                        vmin=vmin, vmax=vmax, s=s)
-            if lastone:
-                plt.scatter(x=-replay_buffer['obs'][e, 1], y=replay_buffer['obs'][e, 0], c=c, vmin=vmin, vmax=vmax, s=0.05)
-        c = 'green' if replay_buffer['done'][episodes[-1][-1]] else 'k'
-        plt.scatter(x=-replay_buffer['obs'][episodes[-1][-1], 1], y=replay_buffer['obs'][episodes[-1][-1], 0], c=c, s=s * 4)
+        if flags.tails:
+            mask = np.array([True] * ndim)
+            mask[vizIdx] = False
+            for i, e in enumerate(episodes):
+                # check if rest of episode observations match (i.e. same slice of Q)
+                if np.any(np.logical_and(mask, (replay_buffer['obs'][episodes[-1][0]] != replay_buffer['obs'][e][0]))):
+                    continue
+                plt.scatter(x=-replay_buffer['obs'][e[:-tail], 1], y=replay_buffer['obs'][e[:-tail], 0], cmap=plt.cm.RdBu_r, c=Rdfr[e[:-tail]],
+                            vmin=vmin, vmax=vmax, s=3)
+        plt.scatter(x=-replay_buffer['obs'][episodes[-1][:-tail], 1], y=replay_buffer['obs'][episodes[-1][:-tail], 0], cmap=plt.cm.RdBu_r, c='k',
+                    vmin=vmin, vmax=vmax, s=0.5)
+        plt.scatter(x=-replay_buffer['obs'][episodes[-1][-1], 1], y=replay_buffer['obs'][episodes[-1][-1], 0], c='green', s=6)
 
 
         fig = plt.figure(4)
@@ -135,13 +136,11 @@ def display_progress(replay_buffer, flags, RewardsHistory, Rdfr, env, episode, e
             plt.subplot(*sp, i + 1)
             avmin = env.observation_space.low[i]
             avmax = env.observation_space.high[i]
-            im = plt.imshow(A[:, :, i], cmap=plt.cm.RdBu_r, vmin=avmin, vmax=avmax,
-                            extent=extent)
+            im = plt.imshow(A[:, :, i], cmap=plt.cm.RdBu_r, vmin=avmin, vmax=avmax, extent=extent)
             im.set_interpolation('bilinear')
-            cb = fig.colorbar(im)
             plt.scatter(x=-replay_buffer['obs'][episodes[-1], 1], y=replay_buffer['obs'][episodes[-1], 0], c='k',
-                                vmin=avmin, vmax=avmax, s=1)
-            plt.scatter(x=-replay_buffer['obs'][episodes[-1][-1], 1], y=replay_buffer['obs'][episodes[-1][-1], 0], c='green', s=s * 4)
+                                vmin=avmin, vmax=avmax, s=0.5)
+            plt.scatter(x=-replay_buffer['obs'][episodes[-1][-1], 1], y=replay_buffer['obs'][episodes[-1][-1], 0], c='green', s=6)
         if movie:
             movie.grab_frames()
     plt.pause(0.1)

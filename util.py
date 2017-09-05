@@ -18,10 +18,13 @@ from matplotlib.widgets import CheckButtons
 
 
 class ToggleFlags:
-    def __init__(self):
+    def __init__(self,kwargs=None):
         self.names=[]
+        self.kwargs=kwargs
     def add(self,name,value=False):
         if name in ['add','showat','__init__']:return
+        if name in self.kwargs:
+            value=self.kwargs[name]
         self.names.append(name)
         self.__setattr__(name,value)
     def showat(self,ax):
