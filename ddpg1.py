@@ -29,7 +29,7 @@ def ddpg_training(plt,args=None):
 
 
     #allocate replay buffers
-    replay_buffer = ReplayBuffer(Config.batch_size, env.observation_space.shape, env.action_space.shape)
+    replay_buffer = ReplayBuffer(Config.buffer_length, env.observation_space.shape, env.action_space.shape)
 
     #set up the plotting - imports must be here to enable matplotlib.use()
     plt.ion()
@@ -41,20 +41,19 @@ def ddpg_training(plt,args=None):
     flags.add('render',True)
     flags.add('clear')
     flags.add('viz',True)
-    flags.add('movie',True)
+    flags.add('movie',False)
     flags.add('tails',False)
 
-    rcnt=0
-    Rfull=False
     RewardsHistory = []
-    Rdfr = np.zeros((Rsz,))
-    episodes=[]
+    Rdfr = np.zeros((Config.buffer_length,))
+    episodes = []
+    epoches = int(Config.buffer_length / Config.batch_size)
 
     for i_episode in range(Config.max_episodes):
         observation1 = env.reset()
-        RewardsHistory.append(0)
         episode = []
-        for t in range(1000):
+        for t in range(Config.max_steps):
+            episode.append(replay_buffer.index)
             #take step using the action based on actor
             observation = observation1
             action = actor.predict(np.expand_dims(observation, axis=0))[0]
@@ -64,35 +63,33 @@ def ddpg_training(plt,args=None):
                 observation1 = np.squeeze(observation1, axis=-1)
 
             # insert into replay buffer
-            ridx = rcnt%Rsz
-            rcnt += 1
             replay_buffer.append(observation, action, reward, observation1, done)
 
             #book keeping
-            episode.append(ridx)
-            RewardsHistory[-1] += reward
+            RewardsHistory.append(reward)
             if flags.render: env.render()
             if done: break
-            if ridx==0: episodes=[] #forget old episodes to avoid wraparound
+            if replay_buffer.index == 0: episodes = [] #forget old episodes to avoid wraparound
 
         if replay_buffer.ready:
-            sample = replay_buffer.sample(Config.batch_size)
-            # train critic on discounted future rewards
-            yq = (replay_buffer.reward[sample] + Config.gamma * (criticp.predict([replay_buffer.obs1[sample], actorp.predict(replay_buffer.obs1[sample])])[:, 0]))
-            critic.train_on_batch([replay_buffer.obs[sample], replay_buffer.action[sample]], yq)
+            for epoch in range(epoches):
+                sample = replay_buffer.sample(Config.batch_size)
+                # train critic on discounted future rewards
+                yq = (replay_buffer.reward[sample] + Config.gamma * (criticp.predict([replay_buffer.obs1[sample], actorp.predict(replay_buffer.obs1[sample])])[:, 0]))
+                critic.train_on_batch([replay_buffer.obs[sample], replay_buffer.action[sample]], yq)
 
-            # train the actor to maximize Q
-            if i_episode > Config.warmup:
-                actor.train_on_batch(replay_buffer.obs[sample], np.zeros((Config.batch_size, *actor.output_shape[1:])))
+                # train the actor to maximize Q
+                if i_episode > Config.warmup:
+                    actor.train_on_batch(replay_buffer.obs[sample], np.zeros((Config.batch_size, *actor.output_shape[1:])))
 
-            # update target networks
-            criticp.set_weights([Config.tau * w + (1 - Config.tau) * wp for wp, w in zip(criticp.get_weights(), critic.get_weights())])
-            actorp.set_weights([Config.tau * w + (1 - Config.tau) * wp for wp, w in zip(actorp.get_weights(), actor.get_weights())])
+                # update target networks
+                criticp.set_weights([Config.tau * w + (1 - Config.tau) * wp for wp, w in zip(criticp.get_weights(), critic.get_weights())])
+                actorp.set_weights([Config.tau * w + (1 - Config.tau) * wp for wp, w in zip(actorp.get_weights(), actor.get_weights())])
         if flags.clear:
-            episodes=[]
+            episodes = []
         episodes.append(episode)
         if len(episode) > 2 and Config.show_progress:
-            display_progress(replay_buffer, flags, plt,RewardsHistory, Rdfr, env, episode, episodes, i_episode, actor, actorp, critic,
+            display_progress(replay_buffer, flags, plt, RewardsHistory, Rdfr, env, episode, episodes, i_episode, actor, actorp, critic,
                              criticp)
         if Config.save_model and i_episode % 100 == 0:
             print("Save models")

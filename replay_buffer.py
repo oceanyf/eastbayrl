@@ -1,6 +1,7 @@
 import numpy as np
 from config import Config
 
+
 class ReplayBuffer(object):
     def __init__(self, length=200000, obs_space_shape=[], action_space_shape=[]):
         """Return a Customer object whose name is *name* and starting
@@ -28,8 +29,6 @@ class ReplayBuffer(object):
         self.ready = False
 
     def append(self, obs, action, reward, obs1, done):
-        if self.index == self.length:
-            self.index = 0
         self.obs[self.index] = obs
         self.obs1[self.index] = obs1
         self.action[self.index] = action
@@ -37,8 +36,9 @@ class ReplayBuffer(object):
         self.done[self.index] = done
         self.index += 1
         if self.index == self.length:
+            self.index = 0
             self.full = True
-        if self.index == Config.batch_size * 5:
+        if not self.ready and self.index == Config.batch_size * 5:
             self.ready = True
 
     def sample(self, batch_size):
