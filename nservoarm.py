@@ -17,20 +17,29 @@ class NServoArmEnv(gym.Env):
         self.dt=.05
         self.viewer = None
         self.links=[1,1]
-        self.high = np.array([self.max_angle]*len(self.links)+[2,2])
+
         self.action_space = spaces.Box(low=-self.max_speed, high=self.max_speed, shape=(len(self.links),))
-        self.observation_space = spaces.Box(low=-3, high=3, shape=(len(self.links)+2,))
+        self.image_goal=('image_goal' in kwargs)
+        if self.image_goal:
+            self.observation_space = spaces.Tuple((spaces.Box(low=-np.pi, high=np.pi, shape=(len(self.links))),
+                                                  spaces.Box(low=0,high=255,shape=(250,500,3))))
+        else:
+            self.high = np.array([self.max_angle] * len(self.links) + [2, 2])
+            self.observation_space = spaces.Box(low=-np.pi, high=np.pi, shape=(len(self.links)+2,))
+
         self._seed()
         self.state=np.zeros([2+len(self.links)])
         self.linkx=np.zeros_like(self.links)
         self.linky=np.zeros_like(self.links)
         self.linka=np.zeros_like(self.links)
-        self.set_goals([(0,np.sum(self.links))])
+        self.deadband=0.05
+        self.lastdr=0
+        #self.set_goals([(0,np.sum(self.links))])
         if 'ngoals' in kwargs:
             self.random_goals(int(kwargs['ngoals']))
         else:
             self.random_goals(1)
-        self.deadband=0.05
+
 
     def _seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
@@ -43,37 +52,43 @@ class NServoArmEnv(gym.Env):
             thdot=np.clip(u[i], -self.max_speed, self.max_speed)
             self.state[i] = th + thdot*self.dt
 
-        #find new position
-        xs,ys,ts=self.node_pos()
-        d = sqrt((self.goalx-xs[-1])**2+(self.goaly-ys[-1])**2)
+
+        # find new position of the end effector
+        xs, ys, ts = self.node_pos()
 
         # determine reward
-        self.done=(d<self.deadband)
-        reward = (2*min(1,self.deadband/d) if d!=0.0 else 1 )-self.lastd
-        reward += 2 if self.done else -.01 # incentive to get something done
+        d, reward = self.distance_reward(xs,ys)
+        reward -= 0.01 # incentive to get something done
         # or np.any(np.greater(u,self.max_speed))
         if np.any(np.less(ys,-0.2)):
-            #print("Done ys={} u={}/{} d={}/{}".format(ys,u,self.max_speed,d,self.deadband))
-            reward -= 1
-            #self.done=True
-        self.lastd = d
+            reward -= 2
+            self.done=True
+        elif d<self.deadband:
+            reward += 2
+            self.done = True
         return self._get_obs(), reward, self.done, {}
 
     def _reset(self):
         self.state= np.zeros_like(self.state)
         self.done=False
-        self.goalx,self.goaly=random.choice(self.goals)
+        self.goalidx=random.randrange(len(self.goals))
+        self.goalx,self.goaly=random.choice(self.goals[self.goalidx])
         while True: #pick a random but valid state
             self.state = np.random.uniform(-np.pi,np.pi,size=[len(self.links)+2])
             xs,ys,ts = self.node_pos()
-            self.lastd=sqrt((self.goalx - xs[-1]) ** 2 + (self.goaly - ys[-1]) ** 2)
+            self.distance_reward(xs,ys) # advance the lastdr
             if np.all(np.greater_equal(ys[1:],0.2)):break
         self.state[-2] = self.goalx
         self.state[-1] = self.goaly
         return self._get_obs()
 
     def _get_obs(self):
-        return np.array(angle_normalize(self.state))
+        if self.image_goal:
+            img = self.render(mode='rgb_array')
+            print("array={}".format(img.shape))
+            return (np.array([angle_normalize(self.state[0]), angle_normalize(self.state[1])]),img)
+        else:
+            return np.array([angle_normalize(self.state[0]),angle_normalize(self.state[1]),self.state[2],self.state[3]])
 
     def _render(self, mode='human', close=False):
         if close:
@@ -142,6 +157,16 @@ class NServoArmEnv(gym.Env):
         self.goals=goals
         self.reset()
         return
+
+    def distance_reward(self,xs,ys,advance=True):
+        d = sqrt((self.goalx-xs[-1])**2+(self.goaly-ys[-1])**2)
+        reward = (2*min(1,self.deadband/d) if d!=0.0 else 1 )-self.lastdr
+        self.lastdr=d
+        return d,reward
+
+    def get_goal_idx(self):
+        return self.goalidx
+
 
 def angle_normalize(x):
     return (((x+np.pi) % (2*np.pi)) - np.pi)
