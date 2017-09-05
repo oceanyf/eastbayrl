@@ -4,10 +4,10 @@ from config import *
 from movieplot import MoviePlot
 
 movie=None
-
+QAccHistory = []
+Qlimits=(0,0)
 def display_progress(replay_buffer, flags, plt, RewardsHistory, Rdfr, env, episode, episodes, i_episode, actor, actorp, critic, criticp):
-    QAccHistory = []
-    global movie
+    global movie,QAccHistory,Qlimits
 
     if flags.movie and not movie:
         m={1:"episode",2:"trends",3:''}
@@ -53,8 +53,8 @@ def display_progress(replay_buffer, flags, plt, RewardsHistory, Rdfr, env, episo
     for i in reversed(episode):
         Rdfr[i] += gamma * last
         last = Rdfr[i]
-
-    plt.plot(Rdfr[episode], 'r', label='R')
+    Qlimits=(min(Qlimits[0],np.min(Rdfr[episode])),max(Qlimits[1],np.max(Rdfr[episode])))
+    plt.plot(Rdfr[episode], 'r', label='Qactual')
     QAccHistory.append(np.mean(np.abs(Rdfr[episode] - qp)))
     plt.legend(loc=1)
 
@@ -63,7 +63,7 @@ def display_progress(replay_buffer, flags, plt, RewardsHistory, Rdfr, env, episo
     flags.showat(ax)
 
     # second plot
-    plt.figure(2)
+    fig=plt.figure(2)
     sp = (2, 1)
     plt.clf()
     fig.suptitle("{}, Trends {}{}".format(env.spec.id,  "Warming" if (i_episode < warmup) else "",
@@ -82,7 +82,7 @@ def display_progress(replay_buffer, flags, plt, RewardsHistory, Rdfr, env, episo
         fig = plt.figure(3)
         ax = plt.gca()
         plt.clf()
-        ax.set_title("Qvalue for obs{}".format(vizIdx))
+        fig.suptitle("Qvalue for obs{}, Episode {} ".format(vizIdx,i_episode))
         # todo: make this a function of the first two action space dimensions
         gsz = 100
         oidx0 = vizIdx[0]
@@ -92,6 +92,7 @@ def display_progress(replay_buffer, flags, plt, RewardsHistory, Rdfr, env, episo
         low = env.observation_space.low
         high = env.observation_space.high
         extent = [low[oidx0], high[oidx0], low[oidx1], high[oidx1]]
+        extent = [x*1.01 for x in extent]
         X, Y = np.meshgrid(np.linspace(high[oidx0], low[oidx0], gsz),
                            np.linspace(high[oidx1], low[oidx1], gsz))
         tmp = []
@@ -105,14 +106,13 @@ def display_progress(replay_buffer, flags, plt, RewardsHistory, Rdfr, env, episo
         A = act.reshape(gsz, gsz, nadim)
         # print("act shape={} A={} act={}, A={}".format(act.shape,A.shape,act[:5],A[1,1]))
         Z = critic.predict([obs, act]).reshape(gsz, gsz)
-        vmin = np.min(Z)
-        vmax = np.max(Z)
+        vmin,vmax = Qlimits
         im = plt.imshow(Z, cmap=plt.cm.RdBu_r, vmin=vmin, vmax=vmax, extent=extent)
         im.set_interpolation('bilinear')
         cb = fig.colorbar(im)
         tail = int(1 / (1 - gamma))
-        plt.axis([low[0], high[0], low[1], high[1]])
-        if flags.tails:
+        plt.axis(extent)
+        if flags.trails:
             mask = np.array([True] * ndim)
             mask[vizIdx] = False
             for i, e in enumerate(episodes):
@@ -121,7 +121,10 @@ def display_progress(replay_buffer, flags, plt, RewardsHistory, Rdfr, env, episo
                     continue
                 plt.scatter(x=-replay_buffer['obs'][e[:-tail], 1], y=replay_buffer['obs'][e[:-tail], 0], cmap=plt.cm.RdBu_r, c=Rdfr[e[:-tail]],
                             vmin=vmin, vmax=vmax, s=3)
-        plt.scatter(x=-replay_buffer['obs'][episodes[-1][:-tail], 1], y=replay_buffer['obs'][episodes[-1][:-tail], 0], cmap=plt.cm.RdBu_r, c='k',
+        plt.scatter(x=-replay_buffer['obs'][episodes[-1], 1], y=replay_buffer['obs'][episodes[-1], 0], cmap=plt.cm.RdBu_r,
+                    c=Rdfr[episodes[-1]],
+                    vmin=vmin, vmax=vmax, s=6)
+        plt.scatter(x=-replay_buffer['obs'][episodes[-1], 1], y=replay_buffer['obs'][episodes[-1], 0], cmap=plt.cm.RdBu_r, c='k',
                     vmin=vmin, vmax=vmax, s=0.5)
         plt.scatter(x=-replay_buffer['obs'][episodes[-1][-1], 1], y=replay_buffer['obs'][episodes[-1][-1], 0], c='green', s=6)
 
@@ -129,18 +132,19 @@ def display_progress(replay_buffer, flags, plt, RewardsHistory, Rdfr, env, episo
         fig = plt.figure(4)
         ax = plt.gca()
         plt.clf()
-        ax.set_title("Actions for obs{}".format(vizIdx))
-        plt.axis([low[0], high[0], low[1], high[1]])
+        fig.suptitle("Actions for obs{}, Episode {}".format(vizIdx,i_episode))
+        plt.axis(extent)
         sp = (1,nadim)
         for i in range(nadim):
             plt.subplot(*sp, i + 1)
-            avmin = env.observation_space.low[i]
-            avmax = env.observation_space.high[i]
+            avmax = max(-np.min(A[:, :, i]),np.max(A[:, :, i]))
+            avmin = -avmax
             im = plt.imshow(A[:, :, i], cmap=plt.cm.RdBu_r, vmin=avmin, vmax=avmax, extent=extent)
             im.set_interpolation('bilinear')
             plt.scatter(x=-replay_buffer['obs'][episodes[-1], 1], y=replay_buffer['obs'][episodes[-1], 0], c='k',
                                 vmin=avmin, vmax=avmax, s=0.5)
             plt.scatter(x=-replay_buffer['obs'][episodes[-1][-1], 1], y=replay_buffer['obs'][episodes[-1][-1], 0], c='green', s=6)
+            cb = fig.colorbar(im)
         if movie:
             movie.grab_frames()
     plt.pause(0.1)

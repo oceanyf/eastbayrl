@@ -13,7 +13,7 @@ from config import *
 def ddpg_training(plt,args=None):
 
     print("Using {} environment.".format(env.spec.id))
-    print('observation space {} high {} low {} {} {}'.format(env.observation_space,env.observation_space.high,env.observation_space.low,env.observation_space.shape,env.observation_space.shape[0]))
+    print('observation space {} '.format(env.observation_space))
     print('action space {} high {} low {}'.format(env.action_space,env.action_space.high,env.action_space.low))
     critic.summary()
     actor.summary()
@@ -39,11 +39,11 @@ def ddpg_training(plt,args=None):
 
     flags=ToggleFlags(args)
     flags.add('noise',True)
-    flags.add('render',True)
+    flags.add('render',False)
     flags.add('clear')
     flags.add('viz',True)
     flags.add('movie',True)
-    flags.add('tails',False)
+    flags.add('trails',False)
 
     rcnt=0
     Rfull=False
