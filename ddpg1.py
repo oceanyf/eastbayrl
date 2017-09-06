@@ -72,7 +72,7 @@ def ddpg_training(plt,args=None):
             if done: break
             if replay_buffer.index == 0: episodes = [] #forget old episodes to avoid wraparound
 
-        if False and replay_buffer.ready:
+        if replay_buffer.ready:
             for epoch in range(epoches):
                 sample = replay_buffer.sample(Config.batch_size)
                 # train critic on discounted future rewards
