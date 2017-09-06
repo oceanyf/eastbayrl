@@ -7,9 +7,11 @@ QAccHistory = []
 Qlimits=(0,0)
 def display_progress(replay_buffer, flags, plt, RewardsHistory, Rdfr, env, episode, episodes, i_episode, actor, actorp, critic, criticp):
     global movie,QAccHistory,Qlimits
+    if flags.viz and env.observation_space.shape[0] > 10: # large spaces crash visualization
+        flags.viz=False
 
     if flags.movie and not movie:
-        m={1:"trends",2:"episode",3:''}
+        m={1:"trends",2:"episode"}
         if flags.viz:
             m.update({3:'critic',4:'actor'})
         movie=MoviePlot(m)
@@ -20,6 +22,7 @@ def display_progress(replay_buffer, flags, plt, RewardsHistory, Rdfr, env, episo
     fig=plt.figure(1)
     sp = (2, 1)
     plt.clf()
+    plt.subplots_adjust(left=0.2)
     fig.suptitle("{}, Trends {}{}".format(env.spec.id,  "Warming" if (i_episode < Config.warmup) else "",
                                               "/W noise" if flags.noise else ""))
     plt.subplot(*sp, 1)
@@ -55,7 +58,7 @@ def display_progress(replay_buffer, flags, plt, RewardsHistory, Rdfr, env, episo
     fig.suptitle("{}, Episode {} {}{}".format(env.spec.id, i_episode, "Warming" if (i_episode < Config.warmup) else "",
                                               "/W noise" if flags.noise else ""))
 
-    plt.subplot(*sp, 4)
+    plt.subplot(*sp, 1)
     plt.gca().axhline(y=0, color='k')
     for i in range(min(2,replay_buffer.obs[episode].shape[1])):
         plt.plot(replay_buffer.obs[episode, i], label='obs {}'.format(i))
@@ -76,9 +79,7 @@ def display_progress(replay_buffer, flags, plt, RewardsHistory, Rdfr, env, episo
     plt.legend(loc=1)
 
     plt.subplot(*sp,4)
-    plt.subplots_adjust(left=0.2)
     plt.gca().axhline(y=0, color='k')
-
     plt.plot(Rdfr[episode], 'r', label='Qactual')
     plt.plot(qp, 'gray', label='Qp')
     plt.plot(q, 'k', label='Q')
@@ -86,7 +87,7 @@ def display_progress(replay_buffer, flags, plt, RewardsHistory, Rdfr, env, episo
 
 
     # third plot
-    if flags.viz and env.observation_space.shape[0] < 10:  #this breaks if the observation space is too large
+    if flags.viz:  #this breaks if the observation space is too large
         fig = plt.figure(3)
         ax = plt.gca()
         plt.clf()
