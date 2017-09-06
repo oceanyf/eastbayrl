@@ -136,8 +136,8 @@ def display_progress(replay_buffer, flags, plt, RewardsHistory, Rdfr, env, episo
         sp = (1,nadim)
         for i in range(nadim):
             plt.subplot(*sp, i + 1)
-            avmax = max(-np.min(A[:, :, i]),np.max(A[:, :, i]))
-            avmin = -avmax
+            avmax = env.action_space.high[i]
+            avmin = env.action_space.low[i]
             im = plt.imshow(A[:, :, i], cmap=plt.cm.RdBu_r, vmin=avmin, vmax=avmax, extent=extent)
             im.set_interpolation('bilinear')
             plt.scatter(x=-replay_buffer.obs[episodes[-1], 1], y=replay_buffer.obs[episodes[-1], 0], c='k',
