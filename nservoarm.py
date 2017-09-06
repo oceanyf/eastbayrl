@@ -12,6 +12,8 @@ class NServoArmEnv(gym.Env):
     }
 
     def __init__(self,**kwargs):
+        self.height=160
+        self.width=320
         self.max_angle=np.pi
         self.max_speed=1
         self.dt=.05
@@ -21,8 +23,12 @@ class NServoArmEnv(gym.Env):
         self.action_space = spaces.Box(low=-self.max_speed, high=self.max_speed, shape=(len(self.links),))
         self.image_goal=('image_goal' in kwargs)
         if self.image_goal:
-            self.observation_space = spaces.Tuple((spaces.Box(low=-np.pi, high=np.pi, shape=(len(self.links))),
-                                                  spaces.Box(low=0,high=255,shape=(250,500,3))))
+            self.height,self.width=kwargs["image_goal"]
+            self.channels=3
+            print("Image observation {}x{}".format(self.height,self.width))
+            self.high = np.array([self.max_angle] * len(self.links) + [255]*self.width*self.height*self.channels)
+            self.low = np.array([self.max_angle] * len(self.links) + [0]*self.width*self.height*self.channels)
+            self.observation_space = spaces.Box(low=self.low, high=self.high)
         else:
             self.high = np.array([self.max_angle] * len(self.links) + [2, 2])
             self.observation_space = spaces.Box(low=-np.pi, high=np.pi, shape=(len(self.links)+2,))
@@ -85,8 +91,8 @@ class NServoArmEnv(gym.Env):
     def _get_obs(self):
         if self.image_goal:
             img = self.render(mode='rgb_array')
-            print("array={}".format(img.shape))
-            return (np.array([angle_normalize(self.state[0]), angle_normalize(self.state[1])]),img)
+            print("img {}".format(img.shape))
+            return np.concatenate((angle_normalize(self.state[:len(self.links)]).flatten(), img.flatten()), axis=0)
         else:
             return np.array([angle_normalize(self.state[0]),angle_normalize(self.state[1]),self.state[2],self.state[3]])
 
@@ -99,7 +105,7 @@ class NServoArmEnv(gym.Env):
 
         if self.viewer is None:
             from gym.envs.classic_control import rendering
-            self.viewer = rendering.Viewer(500,250)
+            self.viewer = rendering.Viewer(self.width,self.height)
             sz=np.sum(self.links)
             self.viewer.set_bounds(-1.1*sz,1.1*sz,-0.1*sz,1.1*sz)
             self.pole_transforms=[]
@@ -117,7 +123,7 @@ class NServoArmEnv(gym.Env):
             axle.set_color(0,0,0)
             self.viewer.add_geom(axle)
 
-            goal = rendering.make_circle(0.02)
+            goal = rendering.make_circle(0.2)
             goal.set_color(1,0,0)
             self.goal_transform = rendering.Transform()
             goal.add_attr(self.goal_transform)

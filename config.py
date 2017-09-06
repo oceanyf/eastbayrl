@@ -1,9 +1,9 @@
 class Config(object):
         """These changes to python pep8 naming convention."""
-        buffer_length = 200000
-        batch_size = 400
-        tau = 0.01
-        gamma = 0.5
+        buffer_length = 100
+        batch_size = 16
+        tau = 0.0001
+        gamma = 0.95
         warmup = 2
         render_flag = False
         noise_flag = True

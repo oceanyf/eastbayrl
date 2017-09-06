@@ -1,7 +1,7 @@
 import gym
 from gym.spaces import Tuple
 import keras
-from keras.layers import Dense,Input,BatchNormalization,Dropout,Conv2D,MaxPool2D,Flatten
+from keras.layers import Dense,Input,BatchNormalization,Dropout,Conv2D,MaxPool2D,Flatten,Lambda
 from keras.models import Model
 from keras.optimizers import Adam
 from util import DDPGof,ornstein_exploration
@@ -18,7 +18,7 @@ def make_arm():
         id='NServoArm-v0',
         entry_point='nservoarm:NServoArmEnv',
         max_episode_steps=500,
-        kwargs={'ngoals': 1}
+        kwargs={'ngoals': 1,'image_goal':(160,320)}
     )
     env=gym.make('NServoArm-v0')
     print(env.env.observation_space)
@@ -30,31 +30,35 @@ env = make_arm()
 #create actor,critic
 def make_models():
     #critic
-    if isinstance(env.observation_space,Tuple):
-        image_in = Input(shape=env.observation_space.spaces[1].shape,name='image_observation')
-        x=image_in
-        x=BatchNormalization()(x)
-        x=Conv2D(16,(3,3),activation='relu')(x)
-        x=Conv2D(16,(3,3),activation='relu')(x)
-        x=Conv2D(16,(3,3),activation='relu')(x)
-        x=Conv2D(16,(3,3),activation='relu')(x)
-        x=Conv2D(16,(3,3),activation='relu')(x)
-        x=Conv2D(16,(3,3),activation='relu')(x)
-        x=MaxPool2D((2,2),strides=(2,2))(x)
-        x=Conv2D(16,(3,3),activation='relu')(x)
-        x=MaxPool2D((2,2),strides=(2,2))(x)
-        x=Conv2D(16,(3,3),activation='relu')(x)
-        x=MaxPool2D((2,2),strides=(2,2))(x)
-        x=Conv2D(16,(3,3),activation='relu')(x)
-        x=Flatten()(x)
-        image_feature=Dense(32, activation='relu')(x)
-        sensors_in = Input(shape=env.observation_space.spaces[0].shape,name='sensor_observeration')
-        oin = keras.layers.concatenate([sensors_in,image_feature, ])
-    else:
-        oin = Input(shape=env.observation_space.shape,name='observeration')
+    print(env.observation_space.shape)
     ain = Input(shape=env.action_space.shape,name='action')
-    x=oin
-    x=keras.layers.concatenate([x, ain])
+    oin = Input(shape=env.observation_space.shape, name='observeration')
+    if hasattr(env.env,'image_goal'):
+        #image_in = Input(shape=env.observation_space.spaces[1].shape,name='image_observation')
+        x = Lambda(lambda x: x[:, 2:])(oin)
+        x=keras.layers.Reshape((env.env.height,env.env.width,3))(x)
+        x=BatchNormalization()(x) # image part
+        x=Conv2D(16,(3,3),activation='relu')(x)
+        x=MaxPool2D((2,2),strides=(2,2))(x)
+        x=Conv2D(16,(3,3),activation='relu')(x)
+        x=Conv2D(16,(3,3),activation='relu')(x)
+        x=MaxPool2D((2,2),strides=(2,2))(x)
+        x=Conv2D(16,(3,3),activation='relu')(x)
+        x=Conv2D(16,(3,3),activation='relu')(x)
+        x=Conv2D(16,(3,3),activation='relu')(x)
+        x=Conv2D(16,(3,3),activation='relu')(x)
+        x=MaxPool2D((2,2),strides=(2,2))(x)
+        x=Conv2D(16,(3,3),activation='relu')(x)
+        x=Conv2D(16,(3,3),activation='relu')(x)
+        x=Conv2D(16,(3,3),activation='relu')(x)
+        x=Flatten(name='flattendImage')(x)
+        x=Dense(16, activation='relu',name='image_features')(x)
+        sensors = Lambda(lambda x: x[:,:2])(oin)
+        cin = keras.layers.concatenate([sensors,x],name='sensor_image')
+    else:
+        cin = keras.layers.concatenate([oin, ain],name='sensor')
+
+    keras.layers.concatenate([cin, ain], name='sensor_action')
     x=Dense(64, activation='relu')(x)
     #x=Dropout(.5)(x)
     x=Dense(64, activation='relu')(x)
@@ -66,14 +70,11 @@ def make_models():
     x=Dense(32, activation='relu')(x)
     x=Dense(32, activation='relu',kernel_regularizer='l2')(x)
     x=Dense(1, activation='linear', name='Q')(x)
-    if isinstance(env.observation_space,Tuple):
-        critic = Model([sensors_in,image_in, ain], x)
-    else:
-        critic=Model([oin,ain], x)
+    critic=Model([oin,ain], x)
     critic.compile(optimizer=Adam(lr=0.001),loss='mse')
 
     #actor
-    x=oin
+    x=cin
     x=Dense(32,activation='relu',kernel_regularizer='l2')(x)
     x=Dense(32,activation='relu',kernel_regularizer='l2')(x)
     x=Dense(32,activation='relu',kernel_regularizer='l2')(x)
@@ -82,11 +83,8 @@ def make_models():
     x=Dense(16,activation='relu')(x)
     x=Dense(16,activation='relu')(x)
     x=Dense(env.action_space.shape[0],activation='linear')(x)
-    if isinstance(env.observation_space,Tuple):
-        actor = Model([image_in,sensors_in, ain], x)
-    else:
-        actor=Model(oin, x)
-    actor.compile(optimizer=DDPGof(Adam)(critic, actor, lr=0.001), loss='mse')
+    actor=Model(oin, x)
+    actor.compile(optimizer=DDPGof(Adam)(critic, actor, lr=0.0001), loss='mse')
     return actor,critic
 
 actor,critic=make_models()

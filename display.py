@@ -9,7 +9,7 @@ def display_progress(replay_buffer, flags, plt, RewardsHistory, Rdfr, env, episo
     global movie,QAccHistory,Qlimits
 
     if flags.movie and not movie:
-        m={1:"episode",2:"trends",3:''}
+        m={1:"trends",2:"episode",3:''}
         if flags.viz:
             m.update({3:'critic',4:'actor'})
         movie=MoviePlot(m)
@@ -17,52 +17,8 @@ def display_progress(replay_buffer, flags, plt, RewardsHistory, Rdfr, env, episo
         movie.finish()
         movie=None
     fig = plt.figure(1)
-    sp = (4, 1)
-    plt.clf()
 
-    plt.subplot(*sp, 1)
-    plt.subplots_adjust(left=0.2)
-    # plt.gca().set_ylim([-1.2,1.2])
-    plt.gca().axhline(y=0, color='k')
-    fig.suptitle("{}, Episode {} {}{}".format(env.spec.id, i_episode, "Warming" if (i_episode < Config.warmup) else "",
-                                              "/W noise" if flags.noise else ""))
-    for i in range(replay_buffer.obs[episode].shape[1]):
-        plt.plot(replay_buffer.obs[episode, i], label='obs {}'.format(i))
-    plt.legend(loc=1)
-    plt.subplot(*sp, 2)
-    plt.gca().axhline(y=0, color='k')
-    plt.plot(replay_buffer.action[episode], 'g', label='action taken')
-    actionp = actorp.predict(replay_buffer.obs[episode])
-    action = actor.predict(replay_buffer.obs[episode])
-    plt.plot(action, 'red', label='action')
-    plt.plot(actionp, 'lightgreen', label='actionp')
-    plt.legend(loc=1)
-    plt.subplot(*sp, 3)
-    plt.gca().axhline(y=0, color='k')
-    plt.plot(replay_buffer.reward[episode], 'r', label='reward')
-    plt.legend(loc=1)
-    plt.subplot(*sp, 4)
-    plt.gca().axhline(y=0, color='k')
-    q = critic.predict([replay_buffer.obs[episode], replay_buffer.action[episode]])
-    plt.plot(q, 'k', label='Q')
-    qp = criticp.predict([replay_buffer.obs[episode], replay_buffer.action[episode]])
-    plt.plot(qp, 'gray', label='Qp')
-    Rdfr[episode] = replay_buffer.reward[episode]
-    last = 0
-    for i in reversed(episode):
-        Rdfr[i] += Config.gamma * last
-        last = Rdfr[i]
-    Qlimits=(min(Qlimits[0],np.min(Rdfr[episode])),max(Qlimits[1],np.max(Rdfr[episode])))
-    plt.plot(Rdfr[episode], 'r', label='Qactual')
-    QAccHistory.append(np.mean(np.abs(Rdfr[episode] - qp)))
-    plt.legend(loc=1)
-
-    # simulation control widgets
-    ax = plt.axes([0.01, 0.01, 0.1, 0.2])
-    flags.showat(ax)
-
-    # second plot
-    fig=plt.figure(2)
+    fig=plt.figure(1)
     sp = (2, 1)
     plt.clf()
     fig.suptitle("{}, Trends {}{}".format(env.spec.id,  "Warming" if (i_episode < Config.warmup) else "",
@@ -75,6 +31,59 @@ def display_progress(replay_buffer, flags, plt, RewardsHistory, Rdfr, env, episo
     plt.gca().axhline(y=0, color='k')
     plt.plot(QAccHistory, 'r', label='Qloss history')
     plt.legend(loc=2)
+
+    # simulation control widgets
+    ax = plt.axes([0.01, 0.01, 0.1, 0.2])
+    flags.showat(ax)
+
+    #compute Q
+    q = critic.predict([replay_buffer.obs[episode], replay_buffer.action[episode]])
+
+    qp = criticp.predict([replay_buffer.obs[episode], replay_buffer.action[episode]])
+
+    Rdfr[episode] = replay_buffer.reward[episode]
+    last = 0
+    for i in reversed(episode):
+        Rdfr[i] += Config.gamma * last
+        last = Rdfr[i]
+    QAccHistory.append(np.mean(np.abs(Rdfr[episode] - qp)))
+
+
+    # second plot
+    sp = (4, 1)
+    plt.clf()
+
+    plt.subplot(*sp, 1)
+    plt.subplots_adjust(left=0.2)
+    # plt.gca().set_ylim([-1.2,1.2])
+    plt.gca().axhline(y=0, color='k')
+    fig.suptitle("{}, Episode {} {}{}".format(env.spec.id, i_episode, "Warming" if (i_episode < Config.warmup) else "",
+                                              "/W noise" if flags.noise else ""))
+
+    Qlimits=(min(Qlimits[0],np.min(Rdfr[episode])),max(Qlimits[1],np.max(Rdfr[episode])))
+    plt.plot(Rdfr[episode], 'r', label='Qactual')
+    plt.plot(qp, 'gray', label='Qp')
+    plt.plot(q, 'k', label='Q')
+    plt.legend(loc=1)
+
+    plt.subplot(*sp, 2)
+    plt.gca().axhline(y=0, color='k')
+    plt.plot(replay_buffer.action[episode], 'g', label='action taken')
+    actionp = actorp.predict(replay_buffer.obs[episode])
+    action = actor.predict(replay_buffer.obs[episode])
+    plt.plot(action, 'red', label='action')
+    plt.plot(actionp, 'lightgreen', label='actionp')
+    plt.legend(loc=1)
+    plt.subplot(*sp, 3)
+    plt.gca().axhline(y=0, color='k')
+    plt.plot(replay_buffer.reward[episode], 'r', label='reward')
+    plt.legend(loc=1)
+
+    plt.subplot(*sp, 4)
+    plt.gca().axhline(y=0, color='k')
+    for i in range(min(2,replay_buffer.obs[episode].shape[1])):
+        plt.plot(replay_buffer.obs[episode, i], label='obs {}'.format(i))
+    plt.legend(loc=1)
 
     # third plot
     if flags.viz:

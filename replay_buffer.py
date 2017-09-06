@@ -3,12 +3,13 @@ from config import Config
 
 
 class ReplayBuffer(object):
-    def __init__(self, length=200000, obs_space_shape=[], action_space_shape=[]):
+    def __init__(self,  obs_space_shape, action_space_shape,length=200000):
         """Return a Customer object whose name is *name* and starting
         balance is *balance*."""
         self.length = length
         self.obs_space_shape = obs_space_shape
         self.action_space_shape = action_space_shape
+        print([length] + list(obs_space_shape))
         self.obs = np.zeros([length] + list(obs_space_shape))
         self.obs1 = np.zeros([length] + list(obs_space_shape))
         self.reward = np.zeros((length,))

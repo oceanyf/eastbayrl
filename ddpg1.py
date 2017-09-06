@@ -29,7 +29,7 @@ def ddpg_training(plt,args=None):
 
 
     #allocate replay buffers
-    replay_buffer = ReplayBuffer(Config.buffer_length, env.observation_space.shape, env.action_space.shape)
+    replay_buffer = ReplayBuffer(env.observation_space.shape, env.action_space.shape, Config.buffer_length)
 
     #set up the plotting - imports must be here to enable matplotlib.use()
     plt.ion()
@@ -72,7 +72,7 @@ def ddpg_training(plt,args=None):
             if done: break
             if replay_buffer.index == 0: episodes = [] #forget old episodes to avoid wraparound
 
-        if replay_buffer.ready:
+        if False and replay_buffer.ready:
             for epoch in range(epoches):
                 sample = replay_buffer.sample(Config.batch_size)
                 # train critic on discounted future rewards
