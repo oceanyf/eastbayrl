@@ -72,7 +72,7 @@ class NServoArmEnv(gym.Env):
         self.state= np.zeros_like(self.state)
         self.done=False
         self.goalidx=random.randrange(len(self.goals))
-        self.goalx,self.goaly=random.choice(self.goals[self.goalidx])
+        self.goalx,self.goaly=self.goals[self.goalidx]
         while True: #pick a random but valid state
             self.state = np.random.uniform(-np.pi,np.pi,size=[len(self.links)+2])
             xs,ys,ts = self.node_pos()
