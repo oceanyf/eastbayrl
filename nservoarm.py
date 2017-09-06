@@ -91,7 +91,6 @@ class NServoArmEnv(gym.Env):
     def _get_obs(self):
         if self.image_goal:
             img = self.render(mode='rgb_array')
-            print("img {}".format(img.shape))
             return np.concatenate((angle_normalize(self.state[:len(self.links)]).flatten(), img.flatten()), axis=0)
         else:
             return np.array([angle_normalize(self.state[0]),angle_normalize(self.state[1]),self.state[2],self.state[3]])

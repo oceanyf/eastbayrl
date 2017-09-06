@@ -17,11 +17,10 @@ def make_arm():
     gym.envs.register(
         id='NServoArm-v0',
         entry_point='nservoarm:NServoArmEnv',
-        max_episode_steps=500,
+        max_episode_steps=100,
         kwargs={'ngoals': 1,'image_goal':(160,320)}
     )
     env=gym.make('NServoArm-v0')
-    print(env.env.observation_space)
     return env
 
 env = make_arm()
@@ -30,11 +29,9 @@ env = make_arm()
 #create actor,critic
 def make_models():
     #critic
-    print(env.observation_space.shape)
     ain = Input(shape=env.action_space.shape,name='action')
     oin = Input(shape=env.observation_space.shape, name='observeration')
     if hasattr(env.env,'image_goal'):
-        #image_in = Input(shape=env.observation_space.spaces[1].shape,name='image_observation')
         x = Lambda(lambda x: x[:, 2:])(oin)
         x=keras.layers.Reshape((env.env.height,env.env.width,3))(x)
         x=BatchNormalization()(x) # image part
@@ -58,7 +55,7 @@ def make_models():
     else:
         cin = keras.layers.concatenate([oin, ain],name='sensor')
 
-    keras.layers.concatenate([cin, ain], name='sensor_action')
+    x=keras.layers.concatenate([cin, ain], name='sensor_action')
     x=Dense(64, activation='relu')(x)
     #x=Dropout(.5)(x)
     x=Dense(64, activation='relu')(x)
@@ -91,12 +88,3 @@ actor,critic=make_models()
 
 #exploration policy
 exploration=ornstein_exploration(env.action_space,theta=.5, mu=0., dt=1.0,)
-
-
-# Sensor Observation normalization
-if isinstance(env.observation_space, Tuple):
-    observationOffset= (env.observation_space.spaces[0].low + env.observation_space.spaces[0].high) / 2
-    observationScale= 1 / (env.observation_space.spaces[0].high - env.observation_space.spaces[0].low)
-else:
-    observationOffset= (env.observation_space.low + env.observation_space.high) / 2
-    observationScale= 1 / (env.observation_space.high - env.observation_space.low)

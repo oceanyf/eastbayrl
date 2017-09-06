@@ -1,6 +1,6 @@
 class Config(object):
         """These changes to python pep8 naming convention."""
-        buffer_length = 100
+        buffer_length = 1000
         batch_size = 16
         tau = 0.0001
         gamma = 0.95
@@ -12,4 +12,4 @@ class Config(object):
         show_progress = True
         save_model = False
         max_episodes = 200000
-        max_steps = 1000
+        max_steps = 2500
