@@ -52,6 +52,7 @@ def ddpg_training(plt,args=None):
     for i_episode in range(Config.max_episodes):
         observation1 = env.reset()
         episode = []
+        RewardsHistory.append(0)
         for t in range(Config.max_steps):
             episode.append(replay_buffer.index)
             #take step using the action based on actor
@@ -66,7 +67,7 @@ def ddpg_training(plt,args=None):
             replay_buffer.append(observation, action, reward, observation1, done)
 
             #book keeping
-            RewardsHistory.append(reward)
+            RewardsHistory[-1]+=reward
             if flags.render: env.render()
             if done: break
             if replay_buffer.index == 0: episodes = [] #forget old episodes to avoid wraparound
@@ -91,6 +92,7 @@ def ddpg_training(plt,args=None):
         if len(episode) > 2 and Config.show_progress:
             display_progress(replay_buffer, flags, plt, RewardsHistory, Rdfr, env, episode, episodes, i_episode, actor, actorp, critic,
                              criticp)
+
         if Config.save_model and i_episode % 100 == 0:
             print("Save models")
             actor.save('actor.h5')
