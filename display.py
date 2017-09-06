@@ -123,7 +123,7 @@ def display_progress(replay_buffer, flags, plt, RewardsHistory, Rdfr, env, episo
         plt.scatter(x=-replay_buffer.obs[episodes[-1], 1], y=replay_buffer.obs[episodes[-1], 0], cmap=plt.cm.RdBu_r,
                     c=Rdfr[episodes[-1]],
                     vmin=vmin, vmax=vmax, s=6)
-        plt.scatter(x=-replay_buffer['obs'][episodes[-1], 1], y=replay_buffer['obs'][episodes[-1], 0], cmap=plt.cm.RdBu_r, c='k',
+        plt.scatter(x=-replay_buffer.obs[episodes[-1], 1], y=replay_buffer.obs[episodes[-1], 0], cmap=plt.cm.RdBu_r, c='k',
                     vmin=vmin, vmax=vmax, s=0.5)
         plt.scatter(x=-replay_buffer.obs[episodes[-1][-1], 1], y=replay_buffer.obs[episodes[-1][-1], 0], c='green', s=6)
 
