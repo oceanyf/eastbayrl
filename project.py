@@ -27,31 +27,39 @@ env = make_arm()
 
 
 #create actor,critic
-def make_models():
+def make_models(locator=False):
     #critic
+
     ain = Input(shape=env.action_space.shape,name='action')
     oin = Input(shape=env.observation_space.shape, name='observeration')
     if hasattr(env.env,'image_goal'):
         x = Lambda(lambda x: x[:, 2:])(oin)
-        x=keras.layers.Reshape((env.env.height,env.env.width,3))(x)
-        x=BatchNormalization()(x) # image part
+        iin=keras.layers.Reshape((env.env.height,env.env.width,3),name='image_only')(x)
+
+        x=BatchNormalization()(iin) # image part
+        x=Conv2D(16,(3,3),activation='relu')(x)
+        x=MaxPool2D((2,2),strides=(2,2))(x)
+        x=Conv2D(16,(3,3),activation='relu')(x)
+        x=Dropout(.5)(x)
         x=Conv2D(16,(3,3),activation='relu')(x)
         x=MaxPool2D((2,2),strides=(2,2))(x)
         x=Conv2D(16,(3,3),activation='relu')(x)
         x=Conv2D(16,(3,3),activation='relu')(x)
+        x=Dropout(.5)(x)
+        x=Conv2D(16,(3,3),activation='relu')(x)
+        x=Conv2D(16,(3,3),activation='relu')(x)
         x=MaxPool2D((2,2),strides=(2,2))(x)
         x=Conv2D(16,(3,3),activation='relu')(x)
+        x=Dropout(.5)(x)
         x=Conv2D(16,(3,3),activation='relu')(x)
         x=Conv2D(16,(3,3),activation='relu')(x)
-        x=Conv2D(16,(3,3),activation='relu')(x)
-        x=MaxPool2D((2,2),strides=(2,2))(x)
-        x=Conv2D(16,(3,3),activation='relu')(x)
-        x=Conv2D(16,(3,3),activation='relu')(x)
-        x=Conv2D(16,(3,3),activation='relu')(x)
-        x=Flatten(name='flattendImage')(x)
-        x=Dense(16, activation='relu',name='image_features')(x)
-        sensors = Lambda(lambda x: x[:,:2])(oin)
-        cin = keras.layers.concatenate([sensors,x],name='sensor_image')
+        flat=Flatten(name='flattendImage')(x)
+        x = Dense(64, activation='relu')(flat)
+        x = Dense(2, activation='linear')(x)
+        locatormodel=Model(oin,x)
+        locatormodel.compile(optimizer=Adam(lr=0.001), loss='mse')
+        sensors = Lambda(lambda x: x[:,:2],name='sensors_only')(oin)
+        cin = keras.layers.concatenate([sensors,flat],name='sensor_image')
     else:
         cin = keras.layers.concatenate([oin, ain],name='sensor')
 
@@ -68,7 +76,7 @@ def make_models():
     x=Dense(32, activation='relu',kernel_regularizer='l2')(x)
     x=Dense(1, activation='linear', name='Q')(x)
     critic=Model([oin,ain], x)
-    critic.compile(optimizer=Adam(lr=0.001),loss='mse')
+    critic.compile(optimizer=Adam(lr=0.1),loss='mse')
 
     #actor
     x=cin
@@ -81,8 +89,11 @@ def make_models():
     x=Dense(16,activation='relu')(x)
     x=Dense(env.action_space.shape[0],activation='linear')(x)
     actor=Model(oin, x)
-    actor.compile(optimizer=DDPGof(Adam)(critic, actor, lr=0.0001), loss='mse')
-    return actor,critic
+    actor.compile(optimizer=DDPGof(Adam)(critic, actor, lr=0.001), loss='mse')
+    if locator:
+        return actor, critic,locatormodel
+    else:
+        return actor,critic
 
 actor,critic=make_models()
 

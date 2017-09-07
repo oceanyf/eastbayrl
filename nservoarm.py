@@ -21,7 +21,7 @@ class NServoArmEnv(gym.Env):
         self.links=[1,1]
 
         self.action_space = spaces.Box(low=-self.max_speed, high=self.max_speed, shape=(len(self.links),))
-        self.image_goal=('image_goal' in kwargs)
+        self.image_goal=('image_goal' in kwargs) # NOTE: in this mode a display is required
         if self.image_goal:
             self.height,self.width=kwargs["image_goal"]
             self.channels=3
@@ -40,6 +40,7 @@ class NServoArmEnv(gym.Env):
         self.linka=np.zeros_like(self.links)
         self.deadband=0.05
         self.lastdr=0
+        self.use_random_goals=False
         #self.set_goals([(0,np.sum(self.links))])
         if 'ngoals' in kwargs:
             self.random_goals(int(kwargs['ngoals']))
@@ -72,13 +73,16 @@ class NServoArmEnv(gym.Env):
         elif d<self.deadband:
             reward += 2
             self.done = True
-        return self._get_obs(), reward, self.done, {}
+        return self._get_obs(), reward, self.done, {"goal":(self.goalx,self.goaly)}
 
     def _reset(self):
         self.state= np.zeros_like(self.state)
         self.done=False
+        if self.use_random_goals: # use a new goal each time
+            self.random_goals(1)
         self.goalidx=random.randrange(len(self.goals))
         self.goalx,self.goaly=self.goals[self.goalidx]
+
         while True: #pick a random but valid state
             self.state = np.random.uniform(-np.pi,np.pi,size=[len(self.links)+2])
             xs,ys,ts = self.node_pos()
@@ -90,7 +94,7 @@ class NServoArmEnv(gym.Env):
 
     def _get_obs(self):
         if self.image_goal:
-            img = self.render(mode='rgb_array')
+            img = self._render(mode='rgb_array')
             return np.concatenate((angle_normalize(self.state[:len(self.links)]).flatten(), img.flatten()), axis=0)
         else:
             return np.array([angle_normalize(self.state[0]),angle_normalize(self.state[1]),self.state[2],self.state[3]])
@@ -150,13 +154,12 @@ class NServoArmEnv(gym.Env):
         return xs,ys,ts # xs&ys include end effector
 
     def random_goals(self,n):
-        goals=[]
+        self.goals=[]
         for i in range(n):
             r = np.sum(self.links)
             r *= np.random.uniform(0.3, 1)
             angle = np.random.uniform(0.2, np.pi-0.2)
-            goals.append((r * cos(angle),r * sin(angle)))
-        self.set_goals(goals)
+            self.goals.append((r * cos(angle),r * sin(angle)))
 
     def set_goals(self,goals):
         self.goals=goals
