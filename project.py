@@ -35,24 +35,23 @@ def make_models(locator=False):
     if hasattr(env.env,'image_goal'):
         x = Lambda(lambda x: x[:, 2:])(oin)
         iin=keras.layers.Reshape((env.env.height,env.env.width,3),name='image_only')(x)
-
-        x=BatchNormalization()(iin) # image part
+        x=iin
+        #x=BatchNormalization()(x) # image part
         x=Conv2D(16,(3,3),activation='relu')(x)
         x=MaxPool2D((2,2),strides=(2,2))(x)
         x=Conv2D(16,(3,3),activation='relu')(x)
-        x=Dropout(.5)(x)
+        #x=Dropout(.5)(x)
         x=Conv2D(16,(3,3),activation='relu')(x)
         x=MaxPool2D((2,2),strides=(2,2))(x)
         x=Conv2D(16,(3,3),activation='relu')(x)
         x=Conv2D(16,(3,3),activation='relu')(x)
-        x=Dropout(.5)(x)
+        #x=Dropout(.5)(x)
         x=Conv2D(16,(3,3),activation='relu')(x)
         x=Conv2D(16,(3,3),activation='relu')(x)
-        x=MaxPool2D((2,2),strides=(2,2))(x)
         x=Conv2D(16,(3,3),activation='relu')(x)
-        x=Dropout(.5)(x)
+        #x=Dropout(.5)(x)
         x=Conv2D(16,(3,3),activation='relu')(x)
-        x=Conv2D(16,(3,3),activation='relu')(x)
+        x=Conv2D(16,(3,3),activation='softmax',name='image_softmax')(x)
         flat=Flatten(name='flattendImage')(x)
         x = Dense(64, activation='relu')(flat)
         x = Dense(2, activation='linear')(x)
