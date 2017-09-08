@@ -19,7 +19,9 @@ locator.compile(optimizer=Adam(lr=0.001), loss='mse')
 
 locator.summary()
 layer = locator.get_layer(name='image_softmax')
-activation=K.function([locator.input],[layer.output])
+training = K.variable(value=0,name='batch_normalization_1/keras_learning_phase')
+
+activation=K.function([locator.input,training],[layer.output])
 
 env.env.use_random_goals=True # 0 means random each time
 y=[]
@@ -44,7 +46,7 @@ for i_episode in range(1000000):
         x.append(observation1)
         if done: break
 
-        if len(x)>200:
+        if len(x)>100:
             x = np.array(x)
             y = np.array(y)
             alternate = not alternate
@@ -70,15 +72,19 @@ for i_episode in range(1000000):
                 plt.semilogy(ds)
 
                 plt.figure(3)
-                img = observation1[2:].reshape(160, 320, 3)
-                plt.imshow(img)
-
-                plt.figure(4)
-                plt.title("softmax activation")
+                plt.suptitle("softmax activation")
+                lp=K.learning_phase()
+                print("Learning phase {}".format(lp))
+                K.set_learning_phase(0)
                 weights=activation([x[-1:]])[0]
-                for i in range(16):
-                    plt.subplot(4,4,i+1)
+                K.set_learning_phase(1)
+                rows=int(weights.shape[-1])/3+1
+                plt.subplot(rows,3, 1)
+                plt.imshow(observation1[2:].reshape(160, 320, 3))
+                for i in range(weights.shape[-1]):
+                    plt.subplot(rows,3,i+2)
                     plt.imshow(weights[0,:,:,i])
+
                 plt.pause(0.1)
 
                 print("Episode {:.3f} tloss={:.4f} eloss={:.4f} predict d={:.3f} {} {}".format(i_episode, tloss[-1], eloss[-1],np.mean(d),y[0],yp[0]))
