@@ -73,7 +73,7 @@ class NServoArmEnv(gym.Env):
         elif d<self.deadband:
             reward += 2
             self.done = True
-        return self._get_obs(), reward, self.done, {"goal":(self.goalx,self.goaly)}
+        return self._get_obs(), reward, self.done, {"goal":(self.goalx,self.goaly),'bounds':self.bounds}
 
     def _reset(self):
         self.state= np.zeros_like(self.state)
@@ -110,7 +110,8 @@ class NServoArmEnv(gym.Env):
             from gym.envs.classic_control import rendering
             self.viewer = rendering.Viewer(self.width,self.height)
             sz=np.sum(self.links)
-            self.viewer.set_bounds(-1.1*sz,1.1*sz,-0.1*sz,1.1*sz)
+            self.bounds=(-1.1*sz,1.1*sz,-0.1*sz,1.1*sz)
+            self.viewer.set_bounds(*self.bounds)
             self.pole_transforms=[]
 
             for i,l in enumerate(self.links):
