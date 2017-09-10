@@ -22,7 +22,7 @@ locator=everything["locator"]
 clocator=everything["coarse_locator"]
 image.compile(optimizer='adam',loss='mse')
 features.compile(optimizer='adam',loss='mse')
-locator.compile(optimizer=Adam(lr=0.00001), loss='mse')
+locator.compile(optimizer=Adam(lr=0.0001), loss='mse')
 clocator.compile(optimizer=Adam(lr=0.001), loss='mse')
 
 image.summary()
@@ -33,22 +33,24 @@ locator.summary()
 print("image weights {}".format(np.sum([np.mean(x) for x in image.get_weights()])))
 print("cloc weights {}".format(np.sum([np.mean(x) for x in clocator.get_weights()])))
 
-coarse_locator_output_shape=(int(clocator.output_shape[1]), int(clocator.output_shape[2])
-                             , int(clocator.output_shape[3]))
-
+cloc_shape=(int(clocator.output_shape[1]), int(clocator.output_shape[2]), int(clocator.output_shape[3]))
+nfeatures=int(features.output_shape[3])
+image_shape=(int(image.input_shape[1]), int(image.input_shape[2]), 3)
+nzones=int(clocator.output_shape[1])
+print("images shape={}".format(image_shape))
 
 #layer = locator.get_layer(name='image_softmax')
 #training = K.variable(value=0,name='batch_normalization_1/keras_learning_phase')
 #activation=K.function([locator.input,training],[layer.output])
 
 def coarseof(y):
-    out = np.zeros((y.shape[0], *coarse_locator_output_shape))
-    nx=np.floor((y[:,0]-bounds[0])/(bounds[1]-bounds[0])*coarse_locator_output_shape[0]).astype(int)
-    ny=np.floor((y[:,1]-bounds[2])/(bounds[3]-bounds[2])*coarse_locator_output_shape[1]).astype(int)
+    out = np.zeros((y.shape[0], *cloc_shape))
+    nx=np.floor((y[:,0]-bounds[0]) / (bounds[1]-bounds[0]) * cloc_shape[0]).astype(int)
+    ny=np.floor((y[:,1]-bounds[2]) / (bounds[3]-bounds[2]) * cloc_shape[1]).astype(int)
     for i,(j,k) in enumerate(zip(ny,nx)):
         if i==0:
             print("coarse ijk {} {} {}".format(i,j,k))
-        out[i,2-j,k,:]=1
+        out[i, cloc_shape[1] - 1 - j, k, :]=1
     return out
 
 env.env.use_random_goals=True # 0 means random each time
@@ -123,14 +125,14 @@ for i_episode in range(1000000):
                 plt.suptitle("softmax activation")
                 plt.clf()
                 cloc=clocator.predict(np.expand_dims(x[-1],axis=0))
-                ir=x[-1,2:].reshape((env.env.height, env.env.width, 3))
+                ir=x[-1,2:].reshape(image_shape)
                 print("ir={}".format(ir.shape))
-                nzones=3
                 rsum=np.zeros((nzones,nzones))
                 hsz=int(env.env.height/nzones)
                 wsz=int(env.env.width/nzones)
                 cimg=np.zeros_like(ir)
                 print("cloc[0,0,0]={}".format(cloc[0,0,0]))
+                print("nzones={} hsz={} wsz={} cimg={}".format(nzones,hsz,wsz,cimg.shape))
                 for h in range(nzones):
                     for w in range(nzones):
                         #print("h {} {} w {} {} ".format(h,h*hsz,w,w*wsz))
@@ -138,25 +140,27 @@ for i_episode in range(1000000):
                         rsum[h,w]=np.sum(ir[h*hsz:(h+1)*hsz,w*wsz:(w+1)*wsz,1])
                         #cimg[h*hsz:(h+1)*hsz,w*wsz:(w+1)*wsz,:]=np.array([1,1,1])-np.sum(cloc[:,h,w,:],axis=-1)*np.array([0,1,1]) #assume all channel are goal
                         cimg[h * hsz:(h + 1) * hsz, w * wsz:(w + 1) * wsz, :] = cloc[:, h, w, 0]
+                        cimg[h * hsz:(h + 1) * hsz, w * wsz:(w + 1) * wsz, :] = np.mean(cloc[:, h, w, :],axis=-1)
                 print("rsum={}".format(rsum))
                 print("bounds={}".format(bounds))
                 print("y={}".format(y[-1]))
                 print("coarsey={}".format(coarseof(np.expand_dims(y[-1],axis=0))[0,:,:,0]))
                 print("Cloc[0]={}".format(cloc[0,:,:,0]))
                 activity=features.predict(np.expand_dims(x[-1],axis=0))
-                rows= int(activity.shape[-1] / 3 + 2)
+                cols=3
+                rows= int(activity.shape[-1] / cols + 2)
                 print("rows={} activity.shape={}".format(rows,activity.shape))
-                plt.subplot(rows,3, 1)
-                plt.imshow(x[-1,2:].reshape(160, 320, 3))
-                plt.subplot(rows,3, 3)
+                plt.subplot(rows,cols, 1)
+                plt.imshow(x[-1,2:].reshape(image_shape))
+                plt.subplot(rows,3, cols)
                 plt.imshow(cimg)
                 for i in range(activity.shape[-1]):
-                    plt.subplot(rows,3,i+4)
+                    plt.subplot(rows,cols,i+4)
                     plt.imshow(activity[0, :, :, i])
 
                 loc=locator.predict(np.expand_dims(x[-1],axis=0))
                 print("loc={}".format(loc))
-                plt.subplot(rows,3,2)
+                plt.subplot(rows,cols,2)
                 ax=plt.gca()
                 ax.margins(ymargin=-0.2)
                 ax.set_xlim([bounds[0],bounds[1]])

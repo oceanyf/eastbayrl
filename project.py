@@ -29,8 +29,17 @@ def make_arm():
 
 env = make_arm()
 
+# todo: implement 2d softmax
+def softmax2d(x):
+    x=K.reshape(x,())
+    return x
+# e = K.exp(x - K.max(x, axis=axis, keepdims=True))
+# s = K.sum(e, axis=axis, keepdims=True)
+# return e / s
+
 # returns x,y coordinates[0-1) of maximum value for each channel
 def expected_pos(x):
+
     s1 = K.sum(K.abs(x),axis=-2)
     s2 = K.sum(K.abs(s1),axis=-2)
     s2 = 1.0/(s2+.001)
@@ -87,12 +96,12 @@ def make_models(everything=False):
 
         # feature coarse location model
         x=image_feature_model(iin)
-        nzones=3
+        nzones=5
         overlap=0.5
         tmp=image_feature_model.get_output_shape_at(1)
-        poolsz=np.ceil(np.array((tmp[-3],tmp[-2]))/((nzones+1)/2)) #size of grid
+        poolsz=np.floor(np.array((tmp[-3],tmp[-2]))/(nzones)) #size of grid
         stridesz=poolsz*(1-overlap)
-        coarse_map=MaxPooling2D(pool_size=poolsz,strides=stridesz,padding='valid',name="coarse_map")(x)
+        coarse_map=MaxPooling2D(pool_size=poolsz,padding='same',name="coarse_map")(x)
         coarse_locator=Model(oin,coarse_map)
         #locatormodel.compile(optimizer=Adam(lr=0.001), loss='mse')
 
