@@ -28,6 +28,6 @@ class MoviePlot:
         print("MoviePlot Finish")
         for w in self.writers:
             w.finish()
-        # atexit will call finis, so we want to
+        # atexit will call finish, so we want to
         # make sure we clear the list of writers
         self.writers=[]
