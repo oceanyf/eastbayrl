@@ -9,7 +9,10 @@ from keras.layers import Dense,Input,BatchNormalization,Dropout,Conv2D,MaxPool2D
 from keras.models import Model
 from keras.optimizers import Adam
 import keras.backend as K
+from util import gridsum,frange
 
+llr=0.01
+cllr=0.01
 
 from project import *
 from movieplot import MoviePlot
@@ -22,8 +25,8 @@ locator=everything["locator"]
 clocator=everything["coarse_locator"]
 image.compile(optimizer='adam',loss='mse')
 features.compile(optimizer='adam',loss='mse')
-locator.compile(optimizer=Adam(lr=0.0001), loss='mse')
-clocator.compile(optimizer=Adam(lr=0.001), loss='mse')
+locator.compile(optimizer=Adam(lr=llr), loss='mse')
+clocator.compile(optimizer=Adam(lr=cllr), loss='mse')
 
 image.summary()
 features.summary()
@@ -39,20 +42,36 @@ image_shape=(int(image.input_shape[1]), int(image.input_shape[2]), 3)
 nzones=int(clocator.output_shape[1])
 print("images shape={}".format(image_shape))
 
-#layer = locator.get_layer(name='image_softmax')
-#training = K.variable(value=0,name='batch_normalization_1/keras_learning_phase')
-#activation=K.function([locator.input,training],[layer.output])
+poolingfactor= features.output_shape[2] * features.output_shape[1] / (nzones * nzones)
 
-def coarseof(y):
-    out = np.zeros((y.shape[0], *cloc_shape))
-    nx=np.floor((y[:,0]-bounds[0]) / (bounds[1]-bounds[0]) * cloc_shape[0]).astype(int)
-    ny=np.floor((y[:,1]-bounds[2]) / (bounds[3]-bounds[2]) * cloc_shape[1]).astype(int)
-    for i,(j,k) in enumerate(zip(ny,nx)):
-        if i==0:
-            print("coarse ijk {} {} {}".format(i,j,k))
-        out[i, cloc_shape[1] - 1 - j, k, :]=1
-    return out
+# This generates a target coarse locator output by counting red pixels in the image
+def coarseygroundtruth(x):
+    coarsey = maxpoolcolor(x[:, 2:].reshape((-1, *image_shape)), [1, 0, 0], nzones)
+    coarsey = np.divide(coarsey, coarsey.sum(axis=(-1, -2))[:, None, None])  # normalize
+    coarsey = np.repeat(coarsey, nfeatures, axis=-1)  # copy for each locator channel
+    coarsey = coarsey.reshape((-1, nzones, nzones, nfeatures))
+    return coarsey
 
+#assume img[batch,x,y,c]
+def maxpoolcolor(img,color,nzonesx,*args):
+    nzonesy=nzonesx if not args else args[0]
+    cimg=np.equal(img,color).all(axis=-1)
+    return gridsum(cimg,nzonesx,nzonesy)
+
+def img_add_grid(img,nzonesx,*args,rgb=None,width=1,value=1):
+    nzonesy=nzonesx if not args else args[0]
+    if not rgb: rgb = (img.shape[-1]==3)
+    ix,iy= (-3,-2) if rgb else (-2,-1)
+    if rgb:
+        for x in frange(0,img.shape[ix],img.shape[ix]/nzonesx):
+            img[...,int(x):int(x)+width,:,:] = value
+        for y in frange(0, img.shape[iy], img.shape[iy]/nzonesy):
+            img[...,:,int(y):int(y)+width,:] = value
+    else:
+        for x in frange(0,img.shape[ix],img.shape[ix]/nzonesx):
+            img[...,int(x):int(x)+width,:] = value
+        for y in frange(0, img.shape[iy], img.shape[iy]/nzonesy):
+            img[...,:,int(y):int(y)+width] = value
 env.env.use_random_goals=True # 0 means random each time
 y=[]
 x=[]
@@ -63,8 +82,12 @@ ds=[]
 alternate=False
 bounds=None
 plt.ion()
+fig=plt.figure(3)
+fig.set_size_inches(8, 4.5)
+
 movie=MoviePlot({1:'pretrain_loss',2:'pretrain_distance',3:'pretrain_activation'})
 for i_episode in range(1000000):
+    locked=False # i_episode<10000
 
     if i_episode % 100 == 0:
         locator.save('locator.h5')
@@ -81,111 +104,119 @@ for i_episode in range(1000000):
         x.append(observation1)
         if not bounds: bounds=info['bounds']
         if done: break
-
         if len(x)>100:
             x = np.array(x)
             y = np.array(y)
             alternate = not alternate
             if alternate:
-                coarsey=coarseof(y)
-                print("coarsey.shape {}".format(coarsey.shape))
-                print("features.shape {}".format(features.output_shape))
-                #print("coarsey {}".format(coarsey[:2]))
-                ctloss.append(clocator.train_on_batch(np.array(x), coarsey))
-                print("coarse training loss={}".format(ctloss[-1]))
-                print("image weights {}".format(np.sum([np.mean(x) for x in image.get_weights()])))
-                print("cloc weights {}".format(np.sum([np.mean(x) for x in clocator.get_weights()])))
-                if True:
-                    print("now train locator")
+                if False:
+                    coarsey=coarseygroundtruth(x)
+                    ctloss.append(clocator.train_on_batch(np.array(x), coarsey/poolingfactor))
+                else:
+                    ctloss.append(None)
+                if not locked:
                     loss=locator.train_on_batch(np.array(x), np.array(y))
                     tloss.append(loss)
-                    print("training loss={} {}".format(loss,tloss[-1]))
-
+                else:
+                    tloss.append(None)
+                print("coarse training loss={} image weights {} training loss={} ".format(ctloss[-1],
+                    np.sum([np.mean(x) for x in clocator.get_weights()]),"locked" if locked else tloss[-1] ))
             else:
                 loss=locator.evaluate(x,y,verbose=False)
                 eloss.append(loss)
-                print("eval loss={} {} ".format(eloss[-1],loss))
                 yp=locator.predict(x)
                 d=np.sqrt(np.square(y[:,0]-yp[:,0])+np.square(y[:,1]-yp[:,1]))
                 ds.append(np.mean(d))
-                plt.figure(1)
+
+
+                # display status and trends
+                fig=plt.figure(1)
                 plt.clf()
-                plt.title("Locator Training Loss")
-                plt.semilogy(eloss,label='eval')
-                plt.semilogy(tloss,label='train')
-                plt.semilogy(ctloss,label='Coarse train')
+                plt.title("Locator Training Loss - Episode {} {}".format(i_episode,"locked" if locked else ""))
+                #fig, ax1 = plt.subplots()
+                ax1=plt.gca()
+                ax1.semilogy(eloss,label='eval')
+                ax1.semilogy(tloss,label='train')
                 plt.legend(loc=2)
+                ax2 = ax1.twinx()
+                ax2.semilogy(ctloss,label='Coarse train',c='green')
+                fig.tight_layout()
+                plt.legend(loc=1)
 
                 plt.figure(2)
                 plt.clf()
-                plt.title("Mean Error Distance")
+                plt.title("Mean Error Distance - Episode {}".format(i_episode))
                 plt.semilogy(ds,label='d')
 
                 plt.figure(3)
+                fig = plt.gcf()
+                #fig.subplots_adjust(hspace=1.5)
                 plt.suptitle("softmax activation")
                 plt.clf()
-                cloc=clocator.predict(np.expand_dims(x[-1],axis=0))
-                ir=x[-1,2:].reshape(image_shape)
-                print("ir={}".format(ir.shape))
-                rsum=np.zeros((nzones,nzones))
-                hsz=int(env.env.height/nzones)
-                wsz=int(env.env.width/nzones)
-                cimg=np.zeros_like(ir)
-                print("cloc[0,0,0]={}".format(cloc[0,0,0]))
-                print("nzones={} hsz={} wsz={} cimg={}".format(nzones,hsz,wsz,cimg.shape))
-                for h in range(nzones):
-                    for w in range(nzones):
-                        #print("h {} {} w {} {} ".format(h,h*hsz,w,w*wsz))
-                        #print("ir ",h,w,ir[w * wsz:(w + 1) * wsz, h * hsz:(h + 1) * hsz, 1])
-                        rsum[h,w]=np.sum(ir[h*hsz:(h+1)*hsz,w*wsz:(w+1)*wsz,1])
-                        #cimg[h*hsz:(h+1)*hsz,w*wsz:(w+1)*wsz,:]=np.array([1,1,1])-np.sum(cloc[:,h,w,:],axis=-1)*np.array([0,1,1]) #assume all channel are goal
-                        cimg[h * hsz:(h + 1) * hsz, w * wsz:(w + 1) * wsz, :] = cloc[:, h, w, 0]
-                        cimg[h * hsz:(h + 1) * hsz, w * wsz:(w + 1) * wsz, :] = np.mean(cloc[:, h, w, :],axis=-1)
-                print("rsum={}".format(rsum))
-                print("bounds={}".format(bounds))
-                print("y={}".format(y[-1]))
-                print("coarsey={}".format(coarseof(np.expand_dims(y[-1],axis=0))[0,:,:,0]))
-                print("Cloc[0]={}".format(cloc[0,:,:,0]))
-                activity=features.predict(np.expand_dims(x[-1],axis=0))
-                cols=3
-                rows= int(activity.shape[-1] / cols + 2)
-                print("rows={} activity.shape={}".format(rows,activity.shape))
-                plt.subplot(rows,cols, 1)
-                plt.imshow(x[-1,2:].reshape(image_shape))
-                plt.subplot(rows,3, cols)
-                plt.imshow(cimg)
-                for i in range(activity.shape[-1]):
-                    plt.subplot(rows,cols,i+4)
-                    plt.imshow(activity[0, :, :, i])
+                cols=4
+                rows= int(features.output_shape[-1] / cols + 2)
+                plt.suptitle("Activation level - Episode {} LR={}/{}".format(i_episode,llr,cllr))
 
+                # run models on last observation
+                cloc=clocator.predict(np.expand_dims(x[-1],axis=0))
+                cloc=np.mean(cloc,axis=-1,keepdims=True) # average over all feature channels
+                cloc*=poolingfactor # scale up by pooling factor
+                groundtruth=coarseygroundtruth(x[-1:])
                 loc=locator.predict(np.expand_dims(x[-1],axis=0))
-                print("loc={}".format(loc))
+                print("act loc={} est loc={}".format(y[-1],loc))
+                print("act cloc={}".format(np.mean(groundtruth,axis=-1)))
+                print("est cloc[0]={}".format(np.mean(cloc[0,:,:],axis=-1)))
+
+                # copy of image observation
+                plt.subplot(rows,cols, 1)
+                plt.gca().set_title('Observation'.format())
+                plt.axis('off')
+                plt.imshow(x[-1,2:].reshape(image_shape)) # image observation
+
+                # plot predicted location
                 plt.subplot(rows,cols,2)
                 ax=plt.gca()
+                plt.axis('off')
                 ax.margins(ymargin=-0.2)
                 ax.set_xlim([bounds[0],bounds[1]])
                 ax.set_ylim([bounds[2],bounds[3]])
-                ax.scatter(loc[:,0],loc[:,1],c='r',s=6)
+                ax.set_aspect(image_shape[0]/image_shape[1])
+                ax.scatter(loc[0,0],loc[0,1],c='g',s=6)
+                ax.scatter(y[-1,0],y[-1,1],c='r',s=3)
+                ax.set_title('Est Location'.format())
+
+                # coarse estimated location
+                plt.subplot(rows, cols, 3)
+                #cimg=np.repeat(np.sum(cloc, axis=-1), 3, axis=-1).reshape((-1, nzones, nzones, 3))
+                cimg=np.mean(cloc,axis=-1)
+                plt.gca().set_title('Coarse Est'.format())
+                plt.axis('off')
+                plt.imshow(cimg[0],aspect=image_shape[0]/image_shape[1],vmin=0,vmax=1.0)
+
+                # coarse location truth
+                plt.subplot(rows, cols, 4)
+                #gimg = np.repeat(np.sum(groundtruth, axis=-1), 3, axis=-1).reshape((-1,nzones,nzones,3))/nfeatures
+                gimg = np.mean(groundtruth, axis=-1)
+                plt.gca().set_title('Coarse Truth'.format())
+                plt.axis('off')
+                plt.imshow(gimg[0],aspect=image_shape[0]/image_shape[1],vmin=0,vmax=1.0)
+
+                # softmax activation levels
+                activity=features.predict(np.expand_dims(x[-1],axis=0))
+                for i in range(activity.shape[-1]):
+                    #plt.gca().set_title('Feature {}'.format(i))
+                    plt.subplot(rows,cols,i+5)
+                    plt.axis('off')
+                    img=activity[0, :, :, i]
+                    #img_add_grid(img, nzones,rgb=False)
+                    plt.imshow(img)
+
                 plt.pause(0.1)
                 movie.grab_frames()
 
-                print("Episode {:.3f} tloss={:.4f} eloss={:.4f} predict d={:.3f} {} {}".format(i_episode, ctloss[-1], eloss[-1],np.mean(d),y[0],yp[0]))
+                print("Episode {:.3f} predict d={:.3f} act {} est {}".format(i_episode,np.mean(d),y[-1],yp[-1]))
             locator.save('locator.h5')
 
 
             x=[]
             y=[]
-
-def normalize(x,space,shape=None):
-    """
-    Transform  into 0.0-1.0, or 0-shape
-    :param x:
-    :param y:
-    :param space:
-    :param shape:
-    :return:
-    """
-
-    if shape:
-        nx=nx*shape[0]
-    return nx
