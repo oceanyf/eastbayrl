@@ -1,21 +1,31 @@
 from __future__ import division
 import numpy as np
-import keras.backend as K
 
-def kwargs(**kwargs): #useful for prepackaging arguments
+
+# return a dictionary of keyword arguments
+#useful for prepackaging arguments
+def kwargs(**kwargs):
     return kwargs
 
-# Warning: If the critic uses BatchNormalization, then the actor must also.
-def DDPGof(opt):
-    class tmp(opt):
-        def __init__(self, critic, actor, *args, **kwargs):
-            super(tmp, self).__init__(*args, **kwargs)
-            self.critic=critic
-            self.actor=actor
-        def get_gradients(self,loss, params):
-            self.combinedloss= -self.critic([self.actor.inputs[0],self.actor.outputs[0]])
-            return K.gradients(self.combinedloss,self.actor.trainable_weights)
-    return tmp
+# generator for a grid of boxes (x1,y1,x2,y2)
+# box arg is output bounding box
+def boxgrid(nx,*args,box=(0,0,1,1)):
+    ny=nx if not args else args[0]
+    for i1,i2 in zip(np.linspace(box[0],box[2],nx+1)[:-1],np.linspace(box[0],box[2],nx+1)[1:]):
+        for j1,j2 in zip(np.linspace(box[1],box[3],ny+1)[:-1],np.linspace(box[1],box[3],ny+1)[1:]):
+            yield (i1,j1,i2,j2)
+def gridsum(a,nx,*args):
+    ny=nx if not args else args[0]
+    return np.sum(a.reshape((-1,ny,int(a.shape[-1]/ny))).sum(axis=-1).reshape(-1,nx,int(a.shape[-2]/nx),ny),axis=-2)
+
+# floating point equivalent of range
+def frange(x, *args):
+    step = 1.0 if len(args)<2 else args[1]
+    y = x if len(args)==0 else args[0]
+    x = x if len(args)>0 else 0
+    while x < y:
+        yield x
+        x += step
 
 from matplotlib.widgets import CheckButtons
 
@@ -40,66 +50,3 @@ class ToggleFlags:
 # wrap environment and add UI
 
 
-# borrowed from https://github.com/matthiasplappert/keras-rl.git
-
-class RandomProcess(object):
-    def reset_states(self):
-        pass
-
-
-class AnnealedGaussianProcess(RandomProcess):
-    def __init__(self, mu, sigma, sigma_min, n_steps_annealing):
-        self.mu = mu
-        self.sigma = sigma
-        self.n_steps = 0
-
-        if sigma_min is not None:
-            self.m = -float(sigma - sigma_min) / float(n_steps_annealing)
-            self.c = sigma
-            self.sigma_min = sigma_min
-        else:
-            self.m = 0.
-            self.c = sigma
-            self.sigma_min = sigma
-
-    @property
-    def current_sigma(self):
-        sigma = max(self.sigma_min, self.m * float(self.n_steps) + self.c)
-        return sigma
-
-
-class GaussianWhiteNoiseProcess(AnnealedGaussianProcess):
-    def __init__(self, mu=0., sigma=1., sigma_min=None, n_steps_annealing=1000, size=1):
-        super(GaussianWhiteNoiseProcess, self).__init__(mu=mu, sigma=sigma, sigma_min=sigma_min, n_steps_annealing=n_steps_annealing)
-        self.size = size
-
-    def sample(self):
-        sample = np.random.normal(self.mu, self.current_sigma, self.size)
-        self.n_steps += 1
-        return sample
-
-# Based on http://math.stackexchange.com/questions/1287634/implementing-ornstein-uhlenbeck-in-matlab
-class OrnsteinUhlenbeckProcess(AnnealedGaussianProcess):
-    def __init__(self, theta, mu=0., sigma=1., dt=1e-2, x0=None, size=1, sigma_min=None, n_steps_annealing=1000):
-        super(OrnsteinUhlenbeckProcess, self).__init__(mu=mu, sigma=sigma, sigma_min=sigma_min, n_steps_annealing=n_steps_annealing)
-        self.theta = theta
-        self.mu = mu
-        self.dt = dt
-        self.x0 = x0
-        self.size = size
-        self.reset_states()
-
-    def sample(self):
-        x = self.x_prev + self.theta * (self.mu - self.x_prev) * self.dt + self.current_sigma * np.sqrt(self.dt) * np.random.normal(size=self.size)
-        self.x_prev = x
-        self.n_steps += 1
-        return x
-
-    def reset_states(self):
-        self.x_prev = self.x0 if self.x0 is not None else np.zeros(self.size)
-
-
-def ornstein_exploration(space,theta,nfrac=0.01,**kwrds):
-    #todo: add support for unique sigma per dimension
-    return OrnsteinUhlenbeckProcess(theta,size=space.shape,
-                                 sigma=nfrac*np.max(space.high),sigma_min=nfrac*np.min(space.low),**kwrds)
