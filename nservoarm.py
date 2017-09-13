@@ -19,6 +19,8 @@ class NServoArmEnv(gym.Env):
         self.dt=.05
         self.viewer = None
         self.links=[1,1]
+        self.nsensors=len(self.links)
+        self.max_episode_steps=100
 
         self.action_space = spaces.Box(low=-self.max_speed, high=self.max_speed, shape=(len(self.links),))
         self.image_goal=('image_goal' in kwargs) # NOTE: in this mode a display is required
@@ -71,7 +73,7 @@ class NServoArmEnv(gym.Env):
             reward -= 2
             self.done=True
         elif d<self.deadband:
-            reward += 2
+            reward += 2*self.max_episode_steps
             self.done = True
         return self._get_obs(), reward, self.done, {"goal":(self.goalx,self.goaly),'bounds':self.bounds}
 
@@ -127,7 +129,7 @@ class NServoArmEnv(gym.Env):
             axle.set_color(0,0,0)
             self.viewer.add_geom(axle)
 
-            goal = rendering.make_circle(0.2)
+            goal = rendering.make_circle(0.1)
             goal.set_color(1,0,0)
             self.goal_transform = rendering.Transform()
             goal.add_attr(self.goal_transform)
@@ -169,7 +171,8 @@ class NServoArmEnv(gym.Env):
 
     def distance_reward(self,xs,ys,advance=True):
         d = sqrt((self.goalx-xs[-1])**2+(self.goaly-ys[-1])**2)
-        reward = (2*min(1,self.deadband/d) if d!=0.0 else 1 )-self.lastdr
+        #reward = (2*min(1,self.deadband/d) if d!=0.0 else 1 )-self.lastdr
+        reward = 2*min(1,self.deadband/d)**2
         self.lastdr=d
         return d,reward
 
