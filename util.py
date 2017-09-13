@@ -16,7 +16,9 @@ def boxgrid(nx,*args,box=(0,0,1,1)):
             yield (i1,j1,i2,j2)
 def gridsum(a,nx,*args):
     ny=nx if not args else args[0]
-    return np.sum(a.reshape((-1,ny,int(a.shape[-1]/ny))).sum(axis=-1).reshape(-1,nx,int(a.shape[-2]/nx),ny),axis=-2)
+    if ((a.shape[-1]%ny)!=0 or (a.shape[-2]%nx)!=0):
+        raise ValueError('Array shape must be evenly divisible by grid sizes')
+    return np.sum(a.reshape((-1,ny,int(a.shape[-1]//ny))).sum(axis=-1).reshape(-1,nx,int(a.shape[-2]/nx),ny),axis=-2)
 
 # floating point equivalent of range
 def frange(x, *args):
