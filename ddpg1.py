@@ -5,6 +5,8 @@
 import gym
 import keras
 import keras.backend as K
+from keras.optimizers import Adam
+from keras_util import DDPGof
 import numpy as np
 import argparse
 from config import Config
@@ -14,6 +16,8 @@ from replay_buffer import ReplayBuffer
 def ddpg_training(plt,args=None):
 
     print("Using {} environment.".format(env.spec.id))
+    actor.compile(optimizer=DDPGof(Adam)(critic, actor, lr=0.001), loss='mse')
+    critic.compile(optimizer=Adam(lr=0.1), loss='mse')
     print('observation space {} '.format(env.observation_space))
     print('action space {} high {} low {}'.format(env.action_space,env.action_space.high,env.action_space.low))
     critic.summary()
@@ -38,7 +42,7 @@ def ddpg_training(plt,args=None):
 
     flags=ToggleFlags(args)
     flags.add('noise',True)
-    flags.add('render',False)
+    flags.add('render',True)
     flags.add('clear')
     flags.add('viz',True)
     flags.add('movie',True)
